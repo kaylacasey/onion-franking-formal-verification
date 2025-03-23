@@ -1,0 +1,26 @@
+theory otp
+
+begin
+
+// No need to declare xor or equations
+
+rule GenKey:
+  [ ]
+  --[ KeyGenerated(fresh k) ]->
+  [ !Key(k) ]
+
+rule Encrypt:
+  [ !Key(k), Fr(m) ]        // Fr(m) generates a fresh message (optional)
+  --[ SendCiphertext(xor(m, k)) ]->
+  [ Out(xor(m, k)) ]
+
+rule Decrypt:
+  [ !Key(k), In(c) ]
+  --[ ReceivePlaintext(xor(c, k)) ]->
+  [ ]
+
+lemma secrecy_of_message:
+  "not ( (Ex k #i. KeyGenerated(k) @i & K(k)) ) ==>
+   not ( (Ex m k #j. KeyGenerated(k) @j & SendCiphertext(xor(m, k)) @j & K(m)) )"
+
+end
