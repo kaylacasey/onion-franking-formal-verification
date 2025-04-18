@@ -7,65 +7,114 @@ Date: 	        April, 2025
 
 */
 
+/*
+  Questions:
+  How to model n servers?
+  Is the current way I model PRG G
+*/
+
 theory ConstructionV1
 begin
 
 builtins: asymmetric-encryption, symmetric-encryption, xor
 
-// symmetric: sdec(senc(m, k), k) = m
+functions: true/0
+functions: G/1 
+functions: kf_/1, r1_/1, r2_/1, r3_/1, r4_/1
+functions: Com_Commit/2, Com_Open/3
 
-// functions: h1/1 // hashing function for MAC
-// functions: h2/1 // hashing function for c1
-// checksum function? 
-// functions: i think use this to define secondary funcs like Com.Open or Onion.Peel and stuff
-// functions are public, [private] functions cannot be applied by the advarsary
+// PRG G in construction V.1
+// can't determine s from any of these
+equations: G(s) = <kf_(s), r1_(s), r2_(s), r3_(s), r4_(s)>   
 
-// ServerSetup - must run for all i servers before you can send a message
-// biggest issue rn - figure out how to enforce ordering - then you can create keys for all the 
-// servers TODOD DELETE THIS COMMENT
+// implementation of Com.Commit(r,m) and Com.Open(c,m,r)
+equations: Com_Open(Com_Commit(r,m), m, r) = true
 
 rule GenerateSymmetricKey: [Fr(~kr)] --> [!SymmetricKey($S, $R, ~kr)]
 
-rule GenerateOnionServerKeyPair: 
+// Generate n=4 servers, associate them with a network ID
+rule GenerateOnionServerNetwork: 
   let
-    pki = pk(~ski)
+    pk1 = pk(~sk1)
+    pk2 = pk(~sk2)
+    pk3 = pk(~sk3)
+    pk4 = pk(~sk4)
   in
-  [Fr(~ski)] --> [!OnionServerSkAssoc($Si, ~ski), !OnionServerPkAssoc($Si, pki), Out(pki)]
+  [ Fr(~sk1), Fr(~sk2), Fr(~sk3), Fr(~sk4), Fr(~net_id) ] 
+  --> 
+  [ 
+    !OnionServerSkAssoc($S1, ~sk1), !OnionServerPkAssoc($S1, pk1), Out(pk1),
+    !OnionServerSkAssoc($S2, ~sk2), !OnionServerPkAssoc($S2, pk2), Out(pk2),
+    !OnionServerSkAssoc($S3, ~sk3), !OnionServerPkAssoc($S3, pk3), Out(pk3),
+    !OnionServerSkAssoc($S4, ~sk4), !OnionServerPkAssoc($S4, pk4), Out(pk4),
+    !OnionServerNetwork($S1, $S2, $S3, $S4, ~net_id)
+  ]
 
-// generate ski, pki for each n Onion Servers
-// ALTERNATIVELY, can just be a premise in the ModProcess rule / Onion Encrypt rule
-// we need all the keys to be the same across the servers - maybe should be associated with a ServerSetup fact that associates a 
-// consistent server state with a name
-// can associate that with a symmetric key pairing (sender, receiver) PROBABLY NOT
-// this way, 
-// should just be a precondition for Send, this way we don't make any assumptions
-// rule ServerSetup: 
+// Restriction that we only ever have one onion network at once. 
+// We want to be able to send multiple messages over the same server configuration
+// Takes in net_id - this assertion is made in the Send function
+restriction SingleNetwork:
+  "All x #i #j . SingleNetwork(x)@#i & SingleNetwork(x)@#j ==> #i = #j"
 
+
+// The send rule models sending a message through the entire network, including all of the onion servers
 rule Send:
+  let
+    // ****** SEND FUNCTION ******
+    kf = fst(G(~s))
+    r1 = fst(snd(G(~s)))
+    r2 = fst(snd(snd(G(~s))))
+    r3 = fst(snd(snd(snd(G(~s)))))
+    r4 = fst(snd(snd(snd(snd(G(~s))))))
+    c1 = senc(<~m, ~s>, kr)
+    c2 = Com_Commit(kf, ~m)
+    c30 = aenc(<'e', r1>, pk1) // e for empty
+    c31 = aenc(<c30, r2>, pk2)
+    c33 = aenc(<c31, r3>, pk3)
+    c34 = aenc(<c32, r4>, pk4)
+    c3 = c34
+    // ***************************
+  in
   [
     // ***** SETUP/PRECONDITONS FOR A MESSAGE TO BE SENT *****
     // onion server setup has happened
-    !OnionServerSkAssoc($S1, sk1),
-
+    !OnionServerNetwork($S1, $S2, $S3, $S4, ~net_id),
+    
     // kr has been generated
-    !SymmetricKey($S, $R, kr)
+    !SymmetricKey($S, $R, kr),
 
-    // don't need to model m -> can send fresh m and check that the same m was sent and received with a lemma
-    // ***** ***** ***** ***** *****
+    // Moderator Setup has happened
+    !ModeratorKey($M, km),
 
-    // fresh s is chosen
+    // ***** ***** ***** ***** ***** ***** ***** ***** *****
 
-    // Send c1, c2, c3
+    // fresh s is generated
+    Fr(~s),
+
+    // fresh message is generated
+    Fr(~m)
   ]
 
   --[
-    // 
-    //Sent(~m, )
+    SingleNetwork(~net_id),
+    MessageSent($S, $R, ~m)
+     // TODO - can include information about sender and receiver, something like Sent(<~m, ~s>, $S, $R)
   ]->
 
   [
-      Out('m')
+      Out(<~stN, ~ctN>) // TODO - should the advarsary be able to see that this comes from S? what of the network bundle should the adversary be allowed to see?
   ]
+
+  rule Receiver:
+  [In(<stN, ctN>)]
+  --[]->
+  []
+  
+
+  // we generate <c1, c2, c3>, vec(pk), m, s, kr
+  // we want this entire interaction to be associated with a particular network setup
+  // we do this by ensuring that S, R, vec(pk) come as a bundle
+  // ensure that <c1, c2, c3> are associated with sender, receiver, and server setup as it passes through network
 
 
 
@@ -73,3 +122,6 @@ end
 
 // use macros to make things more readable?
 // probably able to prove more properties as well - thinks like that the server keys aren't leakable? idk
+
+// In() - models taking untrusted stuff in from the network. Doesn't necissarly have to be on the Out() channel already - 
+// advarsay can send arbitrary messages
