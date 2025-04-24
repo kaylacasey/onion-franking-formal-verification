@@ -11,6 +11,7 @@ Date: 	        April, 2025
   Questions:
   How to model n servers?
   Is the current way I model PRG G alright? - subterm convergence warning
+    also just like make sure fst(scd ) thing like works
 */
 
 theory ConstructionV1
@@ -23,6 +24,7 @@ functions: G/1
 functions: kf_/1, r1_/1, r2_/1, r3_/1, r4_/1
 functions: Com_Commit/2, Com_Open/3
 functions: Mac_Sign/2, Mac_Verify/3
+functions: sdec_/2, senc_/2
 
 // PRG G in construction V.1
 // can't determine s from any of these
@@ -32,6 +34,7 @@ equations: G(s) = <kf_(s), r1_(s), r2_(s), r3_(s), r4_(s)>
 equations: Com_Open(Com_Commit(r,m), m, r) = true
 // implementation of Mac_Sign(k, m) and Mac_Verify(k, m, sigma)
 equations: Mac_Verify(k, m, Mac_Sign(k, m)) = true
+
 
 rule GenerateSymmetricKey: [Fr(~kr)] --> [!SymmetricKey($S, $R, ~kr)]
 
@@ -58,7 +61,7 @@ rule GenerateOnionServerNetwork:
 // We want to be able to send multiple messages over the same server configuration
 // Takes in net_id - this assertion is made in the Send function
 restriction SingleNetwork:
-  "All x #i #j . SingleNetwork(x)@#i & SingleNetwork(x)@#j ==> #i = #j"
+  "All x y #i #j . SingleNetwork(x)@#i & SingleNetwork(y)@#j ==> x=y"
 
 
 // The send rule models sending a message through the entire network, including all of the onion servers
@@ -70,7 +73,8 @@ rule Send:
     r2 = fst(snd(snd(G(~s))))
     r3 = fst(snd(snd(snd(G(~s)))))
     r4 = fst(snd(snd(snd(snd(G(~s))))))
-    c1 = senc(<~m, ~s>, kr) // cyphertext
+    c1m = senc(~m, kr) // cyphertext
+    c1s = senc(~s, kr) // cyphertext
     c2 = Com_Commit(kf, ~m) // cyphertext commitment / franking tag
     c34 = aenc(<'e', r4>, pk4) // e for empty
     c33 = aenc(<c34, r3>, pk3)
@@ -80,12 +84,46 @@ rule Send:
     // ***************************
     // ****** Onion.Encrypt ******
     // encrypt c1 with vec(pk)
-    
+    ctm0 = aenc(aenc(aenc(aenc(c1m, pk4), pk3), pk2), pk1)
+    cts0 = aenc(aenc(aenc(aenc(c1s, pk4), pk3), pk2), pk1)
     // ***************************
     // ****** ModProcess *********
     sigma = MAC_Sign(~km, <c2, ~ctx>)
     sigma_c = h(<sigma, c2, ~ctx>)
-    st0 = <c2, c3, sigma, sigma_c, ~ctx>
+    // st0 = <c2, sigma, sigma_c, ~ctx>
+    // ***************************
+    // ******* Onion.Peel ********
+    // path of the cyphertext through the onion encryption scheme
+    ctm1 = adec(ctm0, pk1)
+    cts1 = adec(cts0, pk1)
+    ctm2 = adec(ctm1, pk2)
+    cts2 = adec(cts1, pk2)
+    ctm3 = adec(ctm2, pk3)
+    cts3 = adec(cts2, pk3)
+    ctm4 = adec(ctm3, pk4) // should just be c1m
+    cts4 = adec(cts3, pk4) // should just be c1s
+    // ***************************
+    // ******** Process **********
+    // path of the metadata through the onion encryption scheme
+    st1_c2 = c2 XOR r1
+    st1_sigma = sigma XOR r1
+    st1_sigma_c = sigma_c XOR r1
+    st1_ctx = ~ctx XOR r1
+    
+    st2_c2 = st1_c2 XOR r2
+    st2_sigma = st1_sigma XOR r2
+    st2_sigma_c = st1_sigma_c XOR r2
+    st2_ctx = st1_ctx XOR r2
+
+    st3_c2 = st2_c2 XOR r3
+    st3_sigma = st2_sigma XOR r3
+    st3_sigma_c = st2_sigma_c XOR r3
+    st3_ctx = st2_ctx XOR r3
+
+    st4_c2 = st3_c2 XOR r4
+    st4_sigma = st3_sigma XOR r4
+    st4_sigma_c = st3_sigma_c XOR r4
+    st4_ctx = st3_ctx XOR r4
     // ***************************
   in
   [
@@ -112,21 +150,58 @@ rule Send:
     SingleNetwork(~net_id),
     MessageSent($S, $R, ~m)
      // TODO - can include information about sender and receiver, something like Sent(<~m, ~s>, $S, $R)
+     // TOOD - refine action facts!! these should be able to prove lemmas
   ]->
 
   [
-    Out(<c1, c2, c3>), // Send->ModProcess in protocol
-    Out(<sigma, sigma_c>), // output of ModProcess
-    Out(st0), // output of ModProcess
-    Out(c1) // TODO - should the advarsary be able to see that this comes from S? what of the network bundle should the adversary be allowed to see?
+    Out(<c1s, c1m, c2, c3>), // Send->ModProcess in protocol
+    Out(ctm1), // Output of Onion.Peel
+    Out(cts1), // Output of Onion.Peel
+    Out(ctm2), // Output of Onion.Peel
+    Out(cts2), // Output of Onion.Peel
+    Out(ctm3), // Output of Onion.Peel
+    Out(cts3), // Output of Onion.Peel
+    Out(ctm4), // Output of Onion.Peel
+    Out(cts4), // Output of Onion.Peel
+    Out(st1_c2), // Output of Process server 1
+    Out(st1_sigma), // Output of Process server 1
+    Out(st1_sigma_c), // Output of Process server 1
+    Out(st1_ctx), // Output of Process server 1
+    Out(st2_c2), // Output of Process server 2
+    Out(st2_sigma), // Output of Process server 2
+    Out(st2_sigma_c), // Output of Process server 2
+    Out(st2_ctx), // Output of Process server 2
+    Out(st3_c2), // Output of Process server 3
+    Out(st3_sigma), // Output of Process server 3
+    Out(st3_sigma_c), // Output of Process server 3
+    Out(st3_ctx), // Output of Process server 3
+    Out(st4_c2), // Output of Process server 4
+    Out(st4_sigma), // Output of Process server 4
+    Out(st4_sigma_c), // Output of Process server 4
+    Out(st4_c2), // Output of Process server 4
+    // TODO - should the advarsary be able to see that this comes from S?
+    Out(<ctm4, cts4, st4_c2, st4_sigma, st4_sigma_c, st4_ctx>) 
+    // ^ becomes input to Read_and_Report, just deconstructed stN and ctN
   ]
 
-  rule Receiver:
+  // Models a Receiver who receives and reports an abusive message
+  rule Read_and_Report:
+  let
+    // decrypt c1
+    m = sdec(ctmN, ~kr)
+    s = sdec(ctsN, ~kr)
+
+    kf = fst(G(s))
+    r1 = fst(snd(G(s)))
+    r2 = fst(snd(snd(G(s))))
+    r3 = fst(snd(snd(snd(G(s)))))
+    r4 = fst(snd(snd(snd(snd(G(s))))))
+  in
   [ 
-    In(c1), // c1 = senc(<~m, ~s>, kr)
+    In(<ctmN, ctsN, stN_c2, stN_sigma, stN_sigma_c, stN_ctx>),
     !SymmetricKey($S, $R, ~kr)
   ]
-  --[ MessageReceived($R, sdec(c1, ~kr))]->
+  --[ MessageReceived($R, m) ]->
   []
   
   lemma Executability:
