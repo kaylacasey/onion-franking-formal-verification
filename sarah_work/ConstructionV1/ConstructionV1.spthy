@@ -12,6 +12,7 @@ Date: 	        April, 2025
   How to model n servers?
   Is the current way I model PRG G alright? - subterm convergence warning
     also just like make sure fst(scd ) thing like works
+  Send action fact causing infinite loading stuff
 */
 
 theory ConstructionV1
@@ -19,7 +20,7 @@ begin
 
 builtins: asymmetric-encryption, symmetric-encryption, xor, hashing
 
-functions: true/0
+functions: Equals/2, true/0
 functions: G/1 
 functions: kf_/1, r1_/1, r2_/1, r3_/1, r4_/1
 functions: Com_Commit/2, Com_Open/3
@@ -28,12 +29,16 @@ functions: sdec_/2, senc_/2
 
 // PRG G in construction V.1
 // can't determine s from any of these
-equations: G(s) = <kf_(s), r1_(s), r2_(s), r3_(s), r4_(s)>   
+//equations: G(s) = <kf_(s), r1_(s), r2_(s), r3_(s), r4_(s)>   
+// TODO - fix this, just experimenting
+equations: G(<s, s, s, s, s>) = <s, s, s, s, s>
 
 // implementation of Com.Commit(r,m) and Com.Open(c,m,r)
 equations: Com_Open(Com_Commit(r,m), m, r) = true
 // implementation of Mac_Sign(k, m) and Mac_Verify(k, m, sigma)
 equations: Mac_Verify(k, m, Mac_Sign(k, m)) = true
+
+equations: Equals(x, x) = true 
 
 
 rule GenerateSymmetricKey: [Fr(~kr)] --> [!SymmetricKey($S, $R, ~kr)]
@@ -68,11 +73,11 @@ restriction SingleNetwork:
 rule Send:
   let
     // ****** SEND FUNCTION ******
-    kf = fst(G(~s))
-    r1 = fst(snd(G(~s)))
-    r2 = fst(snd(snd(G(~s))))
-    r3 = fst(snd(snd(snd(G(~s)))))
-    r4 = fst(snd(snd(snd(snd(G(~s))))))
+    kf = fst(G(~s, ~s, ~s, ~s, ~s))
+    r1 = fst(snd(G(~s, ~s, ~s, ~s, ~s)))
+    r2 = fst(snd(snd(G(~s, ~s, ~s, ~s, ~s))))
+    r3 = fst(snd(snd(snd(G(~s, ~s, ~s, ~s, ~s)))))
+    r4 = fst(snd(snd(snd(snd(G(~s, ~s, ~s, ~s, ~s))))))
     c1m = senc(~m, kr) // cyphertext
     c1s = senc(~s, kr) // cyphertext
     c2 = Com_Commit(kf, ~m) // cyphertext commitment / franking tag
@@ -88,7 +93,7 @@ rule Send:
     cts0 = aenc(aenc(aenc(aenc(c1s, pk4), pk3), pk2), pk1)
     // ***************************
     // ****** ModProcess *********
-    sigma = MAC_Sign(~km, <c2, ~ctx>)
+    sigma = Mac_Sign(~km, <c2, ~ctx>)
     sigma_c = h(<sigma, c2, ~ctx>)
     // st0 = <c2, sigma, sigma_c, ~ctx>
     // ***************************
@@ -130,6 +135,11 @@ rule Send:
     // ***** SETUP/PRECONDITONS FOR A MESSAGE TO BE SENT *****
     // onion server setup has happened
     !OnionServerNetwork($S1, $S2, $S3, $S4, $M, ~net_id),
+    !OnionServerSkAssoc($S1, ~sk1), !OnionServerPkAssoc($S1, pk1),
+    !OnionServerSkAssoc($S2, ~sk2), !OnionServerPkAssoc($S2, pk2),
+    !OnionServerSkAssoc($S3, ~sk3), !OnionServerPkAssoc($S3, pk3),
+    !OnionServerSkAssoc($S4, ~sk4), !OnionServerPkAssoc($S4, pk4),
+    !ModeratorKey($M, ~km),
     
     // kr has been generated
     !SymmetricKey($S, $R, kr),
@@ -148,7 +158,7 @@ rule Send:
 
   --[
     SingleNetwork(~net_id),
-    MessageSent($S, $R, ~m)
+    MessageSent($S, $R, ~m, ~ctx)
      // TODO - can include information about sender and receiver, something like Sent(<~m, ~s>, $S, $R)
      // TOOD - refine action facts!! these should be able to prove lemmas
   ]->
@@ -178,7 +188,7 @@ rule Send:
     Out(st4_c2), // Output of Process server 4
     Out(st4_sigma), // Output of Process server 4
     Out(st4_sigma_c), // Output of Process server 4
-    Out(st4_c2), // Output of Process server 4
+    Out(st4_ctx), // Output of Process server 4
     // TODO - should the advarsary be able to see that this comes from S?
     Out(<ctm4, cts4, st4_c2, st4_sigma, st4_sigma_c, st4_ctx>) 
     // ^ becomes input to Read_and_Report, just deconstructed stN and ctN
@@ -191,33 +201,84 @@ rule Send:
     m = sdec(ctmN, ~kr)
     s = sdec(ctsN, ~kr)
 
-    kf = fst(G(s))
-    r1 = fst(snd(G(s)))
-    r2 = fst(snd(snd(G(s))))
-    r3 = fst(snd(snd(snd(G(s)))))
-    r4 = fst(snd(snd(snd(snd(G(s))))))
+    kf = fst(G(s, s, s, s, s))
+    r1 = fst(snd(G(s, s, s, s, s)))
+    r2 = fst(snd(snd(G(s, s, s, s, s))))
+    r3 = fst(snd(snd(snd(G(s, s, s, s, s)))))
+    r4 = fst(snd(snd(snd(snd(G(s, s, s, s, s))))))
+
+    // "decrypt" (XOR based) mrt = <c2, ctx, sigma, sigma_c>
+    mrt_3_c2 = stN_c2 XOR r4 
+    mrt_3_sigma = stN_sigma XOR r4
+    mrt_3_sigma_c = stN_sigma_c XOR r4
+    mrt_3_ctx = stN_ctx XOR r4
+    
+    mrt_2_c2 = mrt_3_c2 XOR r3
+    mrt_2_sigma = mrt_3_sigma XOR r3
+    mrt_2_sigma_c = mrt_3_sigma_c XOR r3
+    mrt_2_ctx = mrt_3_ctx XOR r3
+
+    mrt_1_c2 = mrt_2_c2 XOR r2
+    mrt_1_sigma = mrt_2_sigma XOR r2
+    mrt_1_sigma_c = mrt_2_sigma_c XOR r2
+    mrt_1_ctx = mrt_2_ctx XOR r2
+
+    c2 = mrt_1_c2 XOR r1
+    sigma = mrt_1_sigma XOR r1
+    sigma_c = mrt_1_sigma_c XOR r1
+    ctx = mrt_1_ctx XOR r1
+
   in
   [ 
     In(<ctmN, ctsN, stN_c2, stN_sigma, stN_sigma_c, stN_ctx>),
     !SymmetricKey($S, $R, ~kr)
   ]
-  --[ MessageReceived($R, m) ]->
+  --[ 
+    MessageReceived($S, $R, m, ctx) // todo - maybe make this the same as the stuff you're putting on out?
+    //Receiver_COM_OPEN(m, ctx, Com_Open(c2, m, kf)), // will be true if message commitment is consistent
+    //Receiver_Mac_Hash(m, ctx, ( Equals(sigma_c, h(<sigma, c2, ctx>)) )) // will be true is hash is the same as the hash taken by the moderator
+  ]->
+  //[ Out(<m, ctx, c2, kf, sigma>) ]
+  // [ Out(<m, ctx, c2, sigma>) ]
+  // [ Out( 'yeah?' )]
+  [ Out( ctx ) ]
+  // problem w Out( c2 ) and Out( sigma ) but not Out( ctx )??
+
+
+  // Process of reporting a message:
+  // Out(<m, ctx, c2, kf, sigma>)
+  // Existence of T/F com.open and hashing action fact associated with this message
+  // Mod ( In(<m, ctx, c2, kf, sigma>) )
+  // receives a particular instance of a message, action facts com.open and mac.verify
+  // lemma can assert that THAT particular instance, if correctly sent and read, must be correctly reported
+  rule Moderate:
+  [ 
+    !OnionServerNetwork($S1, $S2, $S3, $S4, $M, ~net_id), !ModeratorKey($M, ~km),
+    In(<m, ctx, c2, kf, sigma>)
+  ]
+  --[
+    SingleNetwork(~net_id),
+    MessageModerated(m, ctx),
+    Moderator_COM_OPEN(m, ctx, Com_Open(c2, m, kf)),
+    Moderator_MAC_Verify(m, ctx, Mac_Verify(~km, <c2, ctx>, sigma))
+    // both of these action facts true => Moderator function returns 1 <=> Report accepted
+  ]->
   []
+ 
   
   lemma Executability:
     exists-trace
-    "Ex S R m #t . MessageSent(S, R, m)@#t"
+    "Ex S R m ctx #t #j #k . MessageSent(S, R, m, ctx)@#t
+    & MessageReceived(S, R, m, ctx)@#j
+    & MessageModerated(m, ctx)@#k"
+
+  // Lemma saying adversary doesn't know the message and context until the message is reported
 
   // Whenever we send a message, 
   // if we receive a message, could be 
   // after running messageSend, we want it to be possible to do a messageRead that gives us the same R, m back
+  /*
   lemma Correctness_incomplete:
     "All S R m #i . MessageSent(S, R, m)@#i ==> Ex s #j. MessageReceived(R, <m, s>)@#j"
-
+ */
 end
-
-// use macros to make things more readable?
-// probably able to prove more properties as well - thinks like that the server keys aren't leakable? idk
-
-// In() - models taking untrusted stuff in from the network. Doesn't necissarly have to be on the Out() channel already - 
-// advarsay can send arbitrary messages
