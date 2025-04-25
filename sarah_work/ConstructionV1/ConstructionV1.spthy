@@ -110,6 +110,7 @@ rule Send:
     // ***************************
     // ******** Process **********
     // path of the metadata through the onion encryption scheme
+    /* 
     st1_c2 = c2 XOR r1
     st1_sigma = sigma XOR r1
     st1_sigma_c = sigma_c XOR r1
@@ -130,6 +131,11 @@ rule Send:
     st4_sigma_c = st3_sigma_c XOR r4
     st4_ctx = st3_ctx XOR r4
     // ***************************
+    */
+    st4_c2 = c2
+    st4_sigma = sigma
+    st4_sigma_c = sigma_c
+    st4_ctx = ~ctx
   in
   [
     // ***** SETUP/PRECONDITONS FOR A MESSAGE TO BE SENT *****
@@ -173,6 +179,7 @@ rule Send:
     Out(cts3), // Output of Onion.Peel
     Out(ctm4), // Output of Onion.Peel
     Out(cts4), // Output of Onion.Peel
+    /* 
     Out(st1_c2), // Output of Process server 1
     Out(st1_sigma), // Output of Process server 1
     Out(st1_sigma_c), // Output of Process server 1
@@ -185,6 +192,7 @@ rule Send:
     Out(st3_sigma), // Output of Process server 3
     Out(st3_sigma_c), // Output of Process server 3
     Out(st3_ctx), // Output of Process server 3
+    */
     Out(st4_c2), // Output of Process server 4
     Out(st4_sigma), // Output of Process server 4
     Out(st4_sigma_c), // Output of Process server 4
@@ -208,6 +216,7 @@ rule Send:
     r4 = fst(snd(snd(snd(snd(G(s, s, s, s, s))))))
 
     // "decrypt" (XOR based) mrt = <c2, ctx, sigma, sigma_c>
+    /* 
     mrt_3_c2 = stN_c2 XOR r4 
     mrt_3_sigma = stN_sigma XOR r4
     mrt_3_sigma_c = stN_sigma_c XOR r4
@@ -227,6 +236,11 @@ rule Send:
     sigma = mrt_1_sigma XOR r1
     sigma_c = mrt_1_sigma_c XOR r1
     ctx = mrt_1_ctx XOR r1
+    */
+    c2 = stN_c2
+    sigma = stN_sigma
+    sigma_c = stN_sigma_c
+    ctx = stN_ctx
 
   in
   [ 
@@ -238,10 +252,10 @@ rule Send:
     //Receiver_COM_OPEN(m, ctx, Com_Open(c2, m, kf)), // will be true if message commitment is consistent
     //Receiver_Mac_Hash(m, ctx, ( Equals(sigma_c, h(<sigma, c2, ctx>)) )) // will be true is hash is the same as the hash taken by the moderator
   ]->
-  //[ Out(<m, ctx, c2, kf, sigma>) ]
+  [ Out(<m, ctx, c2, kf, sigma>) ]
   // [ Out(<m, ctx, c2, sigma>) ]
   // [ Out( 'yeah?' )]
-  [ Out( ctx ) ]
+  // [ Out( ctx ) ]
   // problem w Out( c2 ) and Out( sigma ) but not Out( ctx )??
 
 
