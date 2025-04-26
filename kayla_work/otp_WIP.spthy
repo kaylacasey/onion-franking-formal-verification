@@ -1,0 +1,46 @@
+theory OTP_WIP
+begin
+
+builtins: xor, symmetric-encryption
+
+// Key generation and distribution to sender and receiver
+rule GenerateKey:
+  [ Fr(~k) ]
+  --[ KeyGenerated(~k) ]->
+  [ SenderKey(~k), ReceiverKey(~k) ]
+
+// Sender encrypts a message and sends it
+rule Encrypt:
+  let c = m XOR k
+  in
+  [ SenderKey(k), In(m) ]
+  --[ MessageEncrypted(m, k, c) ]->
+  [ Out(c) ]
+
+// Receiver decrypts a ciphertext
+rule Decrypt:
+  let m = c XOR k
+  in
+  [ ReceiverKey(k), In(c) ]
+  --[ MessageDecrypted(c, k, m) ]->
+  [ Out(m) ]
+
+// Adversary compromises the key from the sender
+rule CompromiseKey_Sender:
+  [ SenderKey(k) ]
+  --[ KeyCompromised_Sender(k) ]->
+  [ K(k) ]
+
+// Adversary compromises the key from the receiver
+rule CompromiseKey_Receiver:
+  [ ReceiverKey(k) ]
+  --[ KeyCompromised_Receiver(k) ]->
+  [ K(k) ]
+
+// Secrecy Lemma: message stays secret if key is not compromised
+lemma otp_secrecy:
+  "All m k c #i.
+    (MessageEncrypted(m, k, c) @ #i)
+    ==> (All #t. (K(m) @ #t ==> (Ex #s. (KeyCompromised_Sender(k) @ #s | KeyCompromised_Receiver(k) @ #s))))"
+
+end

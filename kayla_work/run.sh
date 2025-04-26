@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Name of your Tamarin specification file
-FILE="otp.spthy"
+FILE="otp_WIP.spthy"
 
 # Check if the file exists
 if [[ ! -f "$FILE" ]]; then

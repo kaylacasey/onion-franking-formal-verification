@@ -1,0 +1,432 @@
+theory ConstructionV1 begin
+
+// Function signature and definition of the equational theory E
+
+builtins: xor
+functions: Com_Commit/2, Com_Open/3, Equals/2, G/1, Mac_Sign/2,
+           Mac_Verify/3, adec/2, aenc/2, fst/1, h/1, kf_/1, pair/2, pk/1, r1_/1,
+           r2_/1, r3_/1, r4_/1, sdec/2, sdec_/2, senc/2, senc_/2, snd/1, true/0
+equations:
+    Com_Open(Com_Commit(r, m), m, r) = true,
+    Equals(x, x) = true,
+    G(<s, s, s, s, s>) = <s, s, s, s, s>,
+    Mac_Verify(k, m, Mac_Sign(k, m)) = true,
+    adec(aenc(x.1, pk(x.2)), x.2) = x.1,
+    fst(<x.1, x.2>) = x.1,
+    sdec(senc(x.1, x.2), x.2) = x.1,
+    snd(<x.1, x.2>) = x.2
+
+
+
+
+
+
+
+
+
+
+
+
+
+rule (modulo E) GenerateSymmetricKey:
+   [ Fr( ~kr ) ] --> [ !SymmetricKey( $Sender, $Receiver, ~kr ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) GenerateOnionServerNetwork:
+   [
+   Fr( ~sk1 ), Fr( ~sk2 ), Fr( ~sk3 ), Fr( ~sk4 ), Fr( ~km ), Fr( ~net_id )
+   ]
+  -->
+   [
+   !OnionServerSkAssoc( $S1, ~sk1 ), !OnionServerPkAssoc( $S1, pk(~sk1) ),
+   Out( pk(~sk1) ), !OnionServerSkAssoc( $S2, ~sk2 ),
+   !OnionServerPkAssoc( $S2, pk(~sk2) ), Out( pk(~sk2) ),
+   !OnionServerSkAssoc( $S3, ~sk3 ), !OnionServerPkAssoc( $S3, pk(~sk3) ),
+   Out( pk(~sk3) ), !OnionServerSkAssoc( $S4, ~sk4 ),
+   !OnionServerPkAssoc( $S4, pk(~sk4) ), Out( pk(~sk4) ),
+   !ModeratorKey( $Mod, ~km ),
+   !OnionServerNetwork( $S1, $S2, $S3, $S4, $Mod, ~net_id )
+   ]
+
+  /* has exactly the trivial AC variant */
+
+restriction SingleNetwork:
+  "∀ x y #i #j.
+    ((SingleNetwork( x ) @ #i) ∧ (SingleNetwork( y ) @ #j)) ⇒ (x = y)"
+  // safety formula
+
+rule (modulo E) Send:
+   [
+   !OnionServerNetwork( $S1, $S2, $S3, $S4, $Mod, ~net_id ),
+   !OnionServerSkAssoc( $S1, ~sk1 ), !OnionServerPkAssoc( $S1, pk1 ),
+   !OnionServerSkAssoc( $S2, ~sk2 ), !OnionServerPkAssoc( $S2, pk2 ),
+   !OnionServerSkAssoc( $S3, ~sk3 ), !OnionServerPkAssoc( $S3, pk3 ),
+   !OnionServerSkAssoc( $S4, ~sk4 ), !OnionServerPkAssoc( $S4, pk4 ),
+   !ModeratorKey( $Mod, ~km ), !SymmetricKey( $Sender, $Receiver, kr ),
+   Fr( ~s ), Fr( ~m ), Fr( ~ctx )
+   ]
+  --[ SingleNetwork( ~net_id ), MessageSent( $Sender, $Receiver, ~m, ~ctx )
+  ]->
+   [
+   Out( <senc(~s, kr), senc(~m, kr), 
+         Com_Commit(fst(G(<~s, ~s, ~s, ~s, ~s>)), ~m), 
+         aenc(<
+               aenc(<
+                     aenc(<
+                           aenc(<'e', fst(snd(snd(snd(snd(G(<~s, ~s, ~s, ~s, ~s>))))))>, pk4), 
+                           fst(snd(snd(snd(G(<~s, ~s, ~s, ~s, ~s>)))))>,
+                          pk3), 
+                     fst(snd(snd(G(<~s, ~s, ~s, ~s, ~s>))))>,
+                    pk2), 
+               fst(snd(G(<~s, ~s, ~s, ~s, ~s>)))>,
+              pk1)
+        >
+   ),
+   Out( adec(aenc(aenc(aenc(aenc(senc(~m, kr), pk4), pk3), pk2), pk1), pk1)
+   ),
+   Out( adec(aenc(aenc(aenc(aenc(senc(~s, kr), pk4), pk3), pk2), pk1), pk1)
+   ),
+   Out( adec(adec(aenc(aenc(aenc(aenc(senc(~m, kr), pk4), pk3), pk2), pk1),
+                  pk1),
+             pk2)
+   ),
+   Out( adec(adec(aenc(aenc(aenc(aenc(senc(~s, kr), pk4), pk3), pk2), pk1),
+                  pk1),
+             pk2)
+   ),
+   Out( adec(adec(adec(aenc(aenc(aenc(aenc(senc(~m, kr), pk4), pk3), pk2),
+                            pk1),
+                       pk1),
+                  pk2),
+             pk3)
+   ),
+   Out( adec(adec(adec(aenc(aenc(aenc(aenc(senc(~s, kr), pk4), pk3), pk2),
+                            pk1),
+                       pk1),
+                  pk2),
+             pk3)
+   ),
+   Out( adec(adec(adec(adec(aenc(aenc(aenc(aenc(senc(~m, kr), pk4), pk3),
+                                      pk2),
+                                 pk1),
+                            pk1),
+                       pk2),
+                  pk3),
+             pk4)
+   ),
+   Out( adec(adec(adec(adec(aenc(aenc(aenc(aenc(senc(~s, kr), pk4), pk3),
+                                      pk2),
+                                 pk1),
+                            pk1),
+                       pk2),
+                  pk3),
+             pk4)
+   ),
+   Out( Com_Commit(fst(G(<~s, ~s, ~s, ~s, ~s>)), ~m) ),
+   Out( Mac_Sign(~km, <Com_Commit(fst(G(<~s, ~s, ~s, ~s, ~s>)), ~m), ~ctx>)
+   ),
+   Out( h(<
+           Mac_Sign(~km, <Com_Commit(fst(G(<~s, ~s, ~s, ~s, ~s>)), ~m), ~ctx>), 
+           Com_Commit(fst(G(<~s, ~s, ~s, ~s, ~s>)), ~m), ~ctx>)
+   ),
+   Out( ~ctx ),
+   Out( <
+         adec(adec(adec(adec(aenc(aenc(aenc(aenc(senc(~m, kr), pk4), pk3), pk2),
+                                  pk1),
+                             pk1),
+                        pk2),
+                   pk3),
+              pk4), 
+         adec(adec(adec(adec(aenc(aenc(aenc(aenc(senc(~s, kr), pk4), pk3), pk2),
+                                  pk1),
+                             pk1),
+                        pk2),
+                   pk3),
+              pk4), 
+         Com_Commit(fst(G(<~s, ~s, ~s, ~s, ~s>)), ~m), 
+         Mac_Sign(~km, <Com_Commit(fst(G(<~s, ~s, ~s, ~s, ~s>)), ~m), ~ctx>), 
+         h(<Mac_Sign(~km, <Com_Commit(fst(G(<~s, ~s, ~s, ~s, ~s>)), ~m), ~ctx>), 
+            Com_Commit(fst(G(<~s, ~s, ~s, ~s, ~s>)), ~m), ~ctx>), 
+         ~ctx>
+   )
+   ]
+
+  /*
+  rule (modulo AC) Send:
+     [
+     !OnionServerNetwork( $S1, $S2, $S3, $S4, $Mod, ~net_id ),
+     !OnionServerSkAssoc( $S1, ~sk1 ), !OnionServerPkAssoc( $S1, pk1 ),
+     !OnionServerSkAssoc( $S2, ~sk2 ), !OnionServerPkAssoc( $S2, pk2 ),
+     !OnionServerSkAssoc( $S3, ~sk3 ), !OnionServerPkAssoc( $S3, pk3 ),
+     !OnionServerSkAssoc( $S4, ~sk4 ), !OnionServerPkAssoc( $S4, pk4 ),
+     !ModeratorKey( $Mod, ~km ), !SymmetricKey( $Sender, $Receiver, kr ),
+     Fr( ~s ), Fr( ~m ), Fr( ~ctx )
+     ]
+    --[ SingleNetwork( ~net_id ), MessageSent( $Sender, $Receiver, ~m, ~ctx )
+    ]->
+     [
+     Out( <senc(~s, kr), senc(~m, kr), Com_Commit(~s, ~m), 
+           aenc(<aenc(<aenc(<aenc(<'e', fst(~s)>, pk4), ~s>, pk3), ~s>, pk2), ~s>,
+                pk1)
+          >
+     ),
+     Out( adec(aenc(aenc(aenc(aenc(senc(~m, kr), pk4), pk3), pk2), pk1), pk1)
+     ),
+     Out( adec(aenc(aenc(aenc(aenc(senc(~s, kr), pk4), pk3), pk2), pk1), pk1)
+     ),
+     Out( adec(adec(aenc(aenc(aenc(aenc(senc(~m, kr), pk4), pk3), pk2), pk1),
+                    pk1),
+               pk2)
+     ),
+     Out( adec(adec(aenc(aenc(aenc(aenc(senc(~s, kr), pk4), pk3), pk2), pk1),
+                    pk1),
+               pk2)
+     ),
+     Out( adec(adec(adec(aenc(aenc(aenc(aenc(senc(~m, kr), pk4), pk3), pk2),
+                              pk1),
+                         pk1),
+                    pk2),
+               pk3)
+     ),
+     Out( adec(adec(adec(aenc(aenc(aenc(aenc(senc(~s, kr), pk4), pk3), pk2),
+                              pk1),
+                         pk1),
+                    pk2),
+               pk3)
+     ),
+     Out( adec(adec(adec(adec(aenc(aenc(aenc(aenc(senc(~m, kr), pk4), pk3),
+                                        pk2),
+                                   pk1),
+                              pk1),
+                         pk2),
+                    pk3),
+               pk4)
+     ),
+     Out( adec(adec(adec(adec(aenc(aenc(aenc(aenc(senc(~s, kr), pk4), pk3),
+                                        pk2),
+                                   pk1),
+                              pk1),
+                         pk2),
+                    pk3),
+               pk4)
+     ),
+     Out( Com_Commit(~s, ~m) ),
+     Out( Mac_Sign(~km, <Com_Commit(~s, ~m), ~ctx>) ),
+     Out( h(<Mac_Sign(~km, <Com_Commit(~s, ~m), ~ctx>), Com_Commit(~s, ~m), 
+             ~ctx>)
+     ),
+     Out( ~ctx ),
+     Out( <
+           adec(adec(adec(adec(aenc(aenc(aenc(aenc(senc(~m, kr), pk4), pk3), pk2),
+                                    pk1),
+                               pk1),
+                          pk2),
+                     pk3),
+                pk4), 
+           adec(adec(adec(adec(aenc(aenc(aenc(aenc(senc(~s, kr), pk4), pk3), pk2),
+                                    pk1),
+                               pk1),
+                          pk2),
+                     pk3),
+                pk4), 
+           Com_Commit(~s, ~m), Mac_Sign(~km, <Com_Commit(~s, ~m), ~ctx>), 
+           h(<Mac_Sign(~km, <Com_Commit(~s, ~m), ~ctx>), Com_Commit(~s, ~m), ~ctx
+             >), 
+           ~ctx>
+     )
+     ]
+  */
+
+rule (modulo E) Read_and_Report:
+   [
+   In( <ctmN, ctsN, stN_c2, stN_sigma, stN_sigma_c, stN_ctx> ),
+   !SymmetricKey( $Sender, $Receiver, ~kr )
+   ]
+  --[ MessageReceived( $Sender, $Receiver, sdec(ctmN, ~kr), stN_ctx ) ]->
+   [
+   Out( <sdec(ctmN, ~kr), stN_ctx, stN_c2, 
+         fst(G(<sdec(ctsN, ~kr), sdec(ctsN, ~kr), sdec(ctsN, ~kr), 
+                sdec(ctsN, ~kr), sdec(ctsN, ~kr)>)), 
+         stN_sigma>
+   )
+   ]
+
+  /*
+  rule (modulo AC) Read_and_Report:
+     [
+     In( <ctmN, ctsN, stN_c2, stN_sigma, stN_sigma_c, stN_ctx> ),
+     !SymmetricKey( $Sender, $Receiver, ~kr )
+     ]
+    --[ MessageReceived( $Sender, $Receiver, z, stN_ctx ) ]->
+     [ Out( <z, stN_ctx, stN_c2, z.1, stN_sigma> ) ]
+    variants (modulo AC)
+    1. ~kr   = ~kr.12
+       ctmN  = ctmN.12
+       ctsN  = ctsN.12
+       z     = sdec(ctmN.12, ~kr.12)
+       z.1   = sdec(ctsN.12, ~kr.12)
+    
+    2. ~kr   = ~x.12
+       ctmN  = ctmN.15
+       ctsN  = senc(x.14, ~x.12)
+       z     = sdec(ctmN.15, ~x.12)
+       z.1   = x.14
+    
+    3. ~kr   = ~x.12
+       ctmN  = senc(x.13, ~x.12)
+       ctsN  = ctsN.14
+       z     = x.13
+       z.1   = sdec(ctsN.14, ~x.12)
+    
+    4. ~kr   = ~x.12
+       ctmN  = senc(x.13, ~x.12)
+       ctsN  = senc(x.14, ~x.12)
+       z     = x.13
+       z.1   = x.14
+  */
+
+rule (modulo E) Moderate:
+   [
+   !OnionServerNetwork( $S1, $S2, $S3, $S4, $Mod, ~net_id ),
+   !ModeratorKey( $Mod, ~km ), In( <m, ctx, c2, kf, sigma> )
+   ]
+  --[
+  SingleNetwork( ~net_id ), MessageModerated( m, ctx ),
+  Moderator_COM_OPEN( m, ctx, Com_Open(c2, m, kf) ),
+  Moderator_MAC_Verify( m, ctx, Mac_Verify(~km, <c2, ctx>, sigma) )
+  ]->
+   [ ]
+
+  /*
+  rule (modulo AC) Moderate:
+     [
+     !OnionServerNetwork( $S1, $S2, $S3, $S4, $Mod, ~net_id ),
+     !ModeratorKey( $Mod, ~km ), In( <m, ctx, c2, kf, sigma> )
+     ]
+    --[
+    SingleNetwork( ~net_id ), MessageModerated( m, ctx ),
+    Moderator_COM_OPEN( m, ctx, z ), Moderator_MAC_Verify( m, ctx, z.1 )
+    ]->
+     [ ]
+    variants (modulo AC)
+    1. ~km   = ~km.15
+       c2    = c2.15
+       ctx   = ctx.15
+       kf    = kf.15
+       m     = m.15
+       sigma = sigma.15
+       z     = Com_Open(c2.15, m.15, kf.15)
+       z.1   = Mac_Verify(~km.15, <c2.15, ctx.15>, sigma.15)
+    
+    2. ~km   = ~x.15
+       c2    = x.17
+       ctx   = x.18
+       kf    = kf.19
+       m     = m.19
+       sigma = Mac_Sign(~x.15, <x.17, x.18>)
+       z     = Com_Open(x.17, m.19, kf.19)
+       z.1   = true
+    
+    3. ~km   = ~x.15
+       c2    = Com_Commit(x.17, x.18)
+       ctx   = x.19
+       kf    = x.17
+       m     = x.18
+       sigma = Mac_Sign(~x.15, <Com_Commit(x.17, x.18), x.19>)
+       z     = true
+       z.1   = true
+    
+    4. ~km   = ~km.17
+       c2    = Com_Commit(x.15, x.16)
+       ctx   = ctx.17
+       kf    = x.15
+       m     = x.16
+       sigma = sigma.17
+       z     = true
+       z.1   = Mac_Verify(~km.17, <Com_Commit(x.15, x.16), ctx.17>, sigma.17)
+  */
+
+lemma Executability:
+  exists-trace
+  "∃ Sender Receiver m ctx #t #j #k.
+    ((MessageSent( Sender, Receiver, m, ctx ) @ #t) ∧
+     (MessageReceived( Sender, Receiver, m, ctx ) @ #j)) ∧
+    (MessageModerated( m, ctx ) @ #k)"
+/*
+guarded formula characterizing all satisfying traces:
+"∃ Sender Receiver m ctx #t #j #k.
+  (MessageSent( Sender, Receiver, m, ctx ) @ #t) ∧
+  (MessageReceived( Sender, Receiver, m, ctx ) @ #j) ∧
+  (MessageModerated( m, ctx ) @ #k)"
+*/
+by sorry
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* All wellformedness checks were successful. */
+
+/*
+Generated from:
+Tamarin version 1.10.0
+Maude version 2.7.1
+Git revision: UNKNOWN, branch: UNKNOWN
+Compiled at: 2024-10-30 13:42:18.081591 UTC
+*/
+
+end
+
+==============================================================================
+summary of summaries:
+
+analyzed: woxor.spthy
+
+  processing time: 0.66s
+  
+  Executability (exists-trace): analysis incomplete (1 steps)
+
+==============================================================================

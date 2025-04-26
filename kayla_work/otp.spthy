@@ -1,0 +1,42 @@
+theory OTP
+begin
+
+builtins: xor, symmetric-encryption
+
+// Key generation and distribution to sender and receiver
+rule GenerateKey:
+  [ Fr(~k) ]
+  -->
+  [ SenderKey(~k), ReceiverKey(~k) ]
+
+// Sender encrypts a message and sends it
+rule Encrypt:
+  [ SenderKey(k), In(m) ]
+  -->
+  [ Out(m XOR k) ]
+
+// Receiver decrypts a ciphertext
+rule Decrypt:
+  [ ReceiverKey(k), In(c) ]
+  -->
+  [ Out(c XOR k) ]
+
+// Adversary compromises the key from the sender
+rule CompromiseKey_Sender:
+  [ SenderKey(k) ]
+  -->
+  [ K(k) ]
+
+// Adversary compromises the key from the receiver
+rule CompromiseKey_Receiver:
+  [ ReceiverKey(k) ]
+  -->
+  [ K(k) ]
+
+// Secrecy Lemma: message stays secret if key is not compromised
+lemma otp_secrecy:
+  "All m k i j.
+    (Ex g. (SenderKey(k) @ g) & In(m) @ i & Out(m XOR k) @ j)
+    ==> (All t. (K(m) @ t ==> (Ex s. K(k) @ s)))"
+
+end
