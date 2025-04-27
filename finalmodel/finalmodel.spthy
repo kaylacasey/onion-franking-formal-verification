@@ -247,15 +247,22 @@ rule Send:
     & MessageModerated(m, ctx)@#k"
 
    
+    // if we sent it, if there exists a report, that report will succeed
   lemma Correctness:
     " 
       // For all messages sent  
       ( All Sender Receiver m ctx #t . MessageSent(Sender, Receiver, m, ctx)@#t
         ==>
         // That message can be correcty received 
-        (Ex #x . Receiver_COM_OPEN(m, ctx, true)@#x) & (Ex #x . Receiver_Mac_Hash(m, ctx, true)@#x) &
+        // (Ex z #x . Receiver_COM_OPEN(m, ctx, true)@#x) & (Ex #x . Receiver_Mac_Hash(m, ctx, true)@#x) &
         // And reported 
-        (Ex #x . Moderator_COM_OPEN(m, ctx, true)@#x) & (Ex #x . Moderator_MAC_Verify(m, ctx, true)@#x)
+
+        // That message can be correctly reported 
+        (
+          (Ex #x #y z . Moderator_COM_OPEN(m, ctx, z)@#x &  Moderator_MAC_Verify(m, ctx, z)@#y
+            ==> z=true
+          )
+        )
       )
     "
 
@@ -273,7 +280,7 @@ rule Send:
   lemma Accountability:
   "
     // For all messages that are both sent and correctly received 
-    ( All Sender Receiver m ctx #j #k . 
+    ( All Sender Receiver m ctx #j . 
       MessageSent(Sender, Receiver, m, ctx)@#j & 
       (Ex #x . Receiver_COM_OPEN(m, ctx, true)@#x) & (Ex #x . Receiver_Mac_Hash(m, ctx, true)@#x)
       ==>
