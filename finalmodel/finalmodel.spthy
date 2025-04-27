@@ -1,0 +1,286 @@
+/*
+Specification for Construction V.1 From 'Onion Franking: Abuse Reports for Mix-Based Private Messaging'
+======================================
+
+Authors: 	    Sarah Haddix
+Date: 	        April, 2025
+
+*/
+
+theory ConstructionV1
+begin
+
+builtins: asymmetric-encryption, symmetric-encryption, xor, hashing, diffie-hellman
+
+functions: Equals/2, true/0
+functions: kf_/1, r1_/1, r2_/1, r3_/1, r4_/1
+functions: Com_Commit/2, Com_Open/3
+functions: Mac_Sign/2, Mac_Verify/3
+functions: sdec_/2, senc_/2
+
+
+// implementation of Com.Commit(r,m) and Com.Open(c,m,r)
+equations: Com_Open(Com_Commit(r,m), m, r) = true
+// implementation of Mac_Sign(k, m) and Mac_Verify(k, m, sigma)
+equations: Mac_Verify(k, m, Mac_Sign(k, m)) = true
+
+equations: Equals(x, x) = true 
+
+
+rule GenerateSymmetricKey: [Fr(~kr)] --> [!SymmetricKey($Sender, $Receiver, ~kr)]
+
+// Generate n=4 servers, moderator key ~km, associate them with a network ID
+rule GenerateOnionServerNetwork: 
+  let
+    pk1 = pk(~sk1)
+    pk2 = pk(~sk2)
+    pk3 = pk(~sk3)
+    pk4 = pk(~sk4)
+  in
+  [ Fr(~sk1), Fr(~sk2), Fr(~sk3), Fr(~sk4), Fr(~km), Fr(~net_id) ] 
+  --> 
+  [ 
+    !OnionServerNetworkConfig($S1, $S2, $S3, $S4, $Mod, ~km, ~net_id, ~sk1, pk1, ~sk2, pk2, ~sk3, pk3, ~sk4, pk4),
+    Out(pk1), Out(pk2), Out(pk3), Out(pk4)
+  ]
+
+// Restriction that we only ever have one onion network at once. 
+// We want to be able to send multiple messages over the same server configuration
+// Takes in net_id - this assertion is made in the Send function
+restriction SingleNetwork:
+"All x y #i #j . SingleNetwork(x)@#i & SingleNetwork(y)@#j ==> x=y"
+
+// The send rule models sending a message through the entire network, including all of the onion servers
+rule Send:
+  let
+    // ****** SEND FUNCTION ******
+    kf = pk(~s)
+    r = 'g'^~s
+    
+    c1m = senc(~m, kr) // cyphertext
+    c1s = senc(~s, kr) // cyphertext
+    c2 = Com_Commit(kf, ~m) // cyphertext commitment / franking tag
+    c34 = aenc(<'e', r4>, pk4) // e for empty
+    c33 = aenc(<c34, r3>, pk3)
+    c32 = aenc(<c33, r2>, pk2)
+    c31 = aenc(<c32, r1>, pk1)
+    c3 = c31 // mixnet franking packet - holds ri for each server - optimized out by compiler, just here for illustrative purposes
+    // ***************************
+    // ****** Onion.Encrypt ******
+    // encrypt c1 with vec(pk)
+    ctm0 = aenc(aenc(aenc(aenc(c1m, pk4), pk3), pk2), pk1)
+    cts0 = aenc(aenc(aenc(aenc(c1s, pk4), pk3), pk2), pk1)
+    // ***************************
+    // ****** ModProcess *********
+    sigma = Mac_Sign(~km, <c2, ~ctx>)
+    sigma_c = h(<sigma, c2, ~ctx>)
+    // st0 = <c2, sigma, sigma_c, ~ctx>
+    // ***************************
+    // ******* Onion.Peel ********
+    // path of the cyphertext through the onion encryption scheme
+    ctm1 = adec(ctm0, pk1)
+    cts1 = adec(cts0, pk1)
+    ctm2 = adec(ctm1, pk2)
+    cts2 = adec(cts1, pk2)
+    ctm3 = adec(ctm2, pk3)
+    cts3 = adec(cts2, pk3)
+    ctm4 = adec(ctm3, pk4) // should just be c1m
+    cts4 = adec(cts3, pk4) // should just be c1s
+    // ***************************
+    // ******** Process **********
+    // path of the metadata through the onion encryption scheme
+    // commented out lines are the literal path of the metadata through all n=4 servers
+    // these lines are equivalent to the 4 lines at the bottom and much more computationally tractible
+    /* 
+    st1_c2 = c2 XOR r1
+    st1_sigma = sigma XOR r1
+    st1_sigma_c = sigma_c XOR r1
+    st1_ctx = ~ctx XOR r1
+    
+    st2_c2 = st1_c2 XOR r2
+    st2_sigma = st1_sigma XOR r2
+    st2_sigma_c = st1_sigma_c XOR r2
+    st2_ctx = st1_ctx XOR r2
+
+    st3_c2 = st2_c2 XOR r3
+    st3_sigma = st2_sigma XOR r3
+    st3_sigma_c = st2_sigma_c XOR r3
+    st3_ctx = st2_ctx XOR r3
+
+    st4_c2 = st3_c2 XOR r4
+    st4_sigma = st3_sigma XOR r4
+    st4_sigma_c = st3_sigma_c XOR r4
+    st4_ctx = st3_ctx XOR r4
+    */
+    // ***************************
+    st4_c2 = c2 XOR r
+    st4_sigma = sigma XOR r
+    st4_sigma_c = sigma_c XOR r
+    st4_ctx = ~ctx XOR r
+  in
+  [
+    // ***** SETUP/PRECONDITONS FOR A MESSAGE TO BE SENT *****
+    // onion server setup has happened
+    !OnionServerNetworkConfig($S1, $S2, $S3, $S4, $Mod, ~km, ~net_id, ~sk1, pk1, ~sk2, pk2, ~sk3, pk3, ~sk4, pk4),
+    
+    // kr has been generated
+    !SymmetricKey($Sender, $Receiver, kr),
+
+    // ***** ***** ***** ***** ***** ***** ***** ***** *****
+
+    // fresh s is generated
+    Fr(~s),
+
+    // fresh message is generated
+    Fr(~m),
+
+    // fresh ctx is generated - represents the metadata associated with a message
+    Fr(~ctx)
+  ]
+
+  --[
+    SingleNetwork(~net_id),
+    MessageSent($Sender, $Receiver, ~m, ~ctx)
+  ]->
+
+  [
+    Out(ctm1), // Output of Onion.Peel
+    Out(cts1), // Output of Onion.Peel
+    Out(ctm2), // Output of Onion.Peel
+    Out(cts2), // Output of Onion.Peel
+    Out(ctm3), // Output of Onion.Peel
+    Out(cts3), // Output of Onion.Peel
+    Out(ctm4), // Output of Onion.Peel
+    Out(cts4), // Output of Onion.Peel
+
+    Out(st4_c2), // Output of Process server 4
+    Out(st4_sigma), // Output of Process server 4
+    Out(st4_sigma_c), // Output of Process server 4
+    Out(st4_ctx), // Output of Process server 4
+    // TODO - should the advarsary be able to see that this comes from S?
+    Out(<ctm4, cts4, st4_c2, st4_sigma, st4_sigma_c, st4_ctx>) 
+    // ^ becomes input to Read_and_Report, just deconstructed stN and ctN
+  ]
+  
+  // Models a Receiver who receives and reports an abusive message
+  rule Read_and_Report:
+  let
+    // decrypt c1
+    m = sdec(ctmN, ~kr)
+    s = sdec(ctsN, ~kr)
+
+    kf = pk(s)
+    r = 'g'^s
+
+    /* 
+    // "decrypt" (XOR based) mrt = <c2, ctx, sigma, sigma_c>
+    mrt_3_c2 = stN_c2 XOR r4 
+    mrt_3_sigma = stN_sigma XOR r4
+    mrt_3_sigma_c = stN_sigma_c XOR r4
+    mrt_3_ctx = stN_ctx XOR r4
+    
+    mrt_2_c2 = mrt_3_c2 XOR r3
+    mrt_2_sigma = mrt_3_sigma XOR r3
+    mrt_2_sigma_c = mrt_3_sigma_c XOR r3
+    mrt_2_ctx = mrt_3_ctx XOR r3
+
+    mrt_1_c2 = mrt_2_c2 XOR r2
+    mrt_1_sigma = mrt_2_sigma XOR r2
+    mrt_1_sigma_c = mrt_2_sigma_c XOR r2
+    mrt_1_ctx = mrt_2_ctx XOR r2
+
+    c2 = mrt_1_c2 XOR r1
+    sigma = mrt_1_sigma XOR r1
+    sigma_c = mrt_1_sigma_c XOR r1
+    ctx = mrt_1_ctx XOR r1
+    */
+    /* 
+    c2 = stN_c2
+    sigma = stN_sigma
+    sigma_c = stN_sigma_c
+    ctx = stN_ctx
+    */
+
+    c2 = stN_c2 XOR r
+    sigma = stN_sigma XOR r
+    sigma_c = stN_sigma_c XOR r
+    ctx = stN_ctx XOR r
+    
+  in
+  [ 
+    In(<ctmN, ctsN, stN_c2, stN_sigma, stN_sigma_c, stN_ctx>),
+    !SymmetricKey($Sender, $Receiver, ~kr)
+  ]
+  --[ 
+    MessageReceived($Sender, $Receiver, m, ctx), // todo - maybe make this the same as the stuff you're putting on out?
+    Receiver_COM_OPEN(m, ctx, Com_Open(c2, m, kf)), // will be true if message commitment is consistent
+    Receiver_Mac_Hash(m, ctx, ( Equals(sigma_c, h(<sigma, c2, ctx>)) )) // will be true is hash is the same as the hash taken by the moderator
+  ]->
+  [ Out(<m, ctx, c2, kf, sigma>) ]
+
+
+  // Process of reporting a message:
+  // Out(<m, ctx, c2, kf, sigma>)
+  // Existence of T/F com.open and hashing action fact associated with this message
+  // Mod ( In(<m, ctx, c2, kf, sigma>) )
+  // receives a particular instance of a message, action facts com.open and mac.verify
+  // lemma can assert that THAT particular instance, if correctly sent and read, must be correctly reported
+  rule Moderate:
+  [ 
+    !OnionServerNetworkConfig($S1, $S2, $S3, $S4, $Mod, ~km, ~net_id, ~sk1, pk1, ~sk2, pk2, ~sk3, pk3, ~sk4, pk4),
+    In(<m, ctx, c2, kf, sigma>)
+  ]
+  --[
+    SingleNetwork(~net_id),
+    MessageModerated(m, ctx),
+    Moderator_COM_OPEN(m, ctx, Com_Open(c2, m, kf)),
+    Moderator_MAC_Verify(m, ctx, Mac_Verify(~km, <c2, ctx>, sigma))
+    // both of these action facts true => Moderator function returns 1 <=> Report accepted
+  ]->
+  []
+
+
+  lemma Executability:
+    exists-trace
+    "Ex Sender Receiver m ctx #t #j #k . MessageSent(Sender, Receiver, m, ctx)@#t
+    & MessageReceived(Sender, Receiver, m, ctx)@#j
+    & MessageModerated(m, ctx)@#k"
+
+   
+  lemma Correctness:
+    " 
+      // For all messages sent  
+      ( All Sender Receiver m ctx #t . MessageSent(Sender, Receiver, m, ctx)@#t
+        ==>
+        // That message can be correcty received 
+        (Ex #x . Receiver_COM_OPEN(m, ctx, true)@#x) & (Ex #x . Receiver_Mac_Hash(m, ctx, true)@#x) &
+        // And reported 
+        (Ex #x . Moderator_COM_OPEN(m, ctx, true)@#x) & (Ex #x . Moderator_MAC_Verify(m, ctx, true)@#x)
+      )
+    "
+
+  // No malicious client can create a false abuse report that the moderator will accept
+  lemma Unforgeability:
+  " // For all reports that are successful 
+    ( All m ctx #j #k . Moderator_COM_OPEN(m, ctx, true)@#j & Moderator_MAC_Verify(m, ctx, true)@#k
+    ==>
+    // The message was previously sent through the encryption scheme 
+    (Ex Sender Receiver #x . x < j & x < k & MessageSent(Sender, Receiver, m, ctx)@#x)
+    )
+  "
+
+  // Prevents users from sending messages that can be read by the recipient but not reported
+  lemma Accountability:
+  "
+    // For all messages that are both sent and correctly received 
+    ( All Sender Receiver m ctx #j #k . 
+      MessageSent(Sender, Receiver, m, ctx)@#j & 
+      (Ex #x . Receiver_COM_OPEN(m, ctx, true)@#x) & (Ex #x . Receiver_Mac_Hash(m, ctx, true)@#x)
+      ==>
+      // The message can be successfully reported 
+      (Ex #x . Moderator_COM_OPEN(m, ctx, true)@#x) & (Ex #x . Moderator_MAC_Verify(m, ctx, true)@#x)
+    )
+  "
+
+
+end
