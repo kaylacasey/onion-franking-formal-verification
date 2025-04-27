@@ -1,0 +1,40 @@
+/*
+Specification for Construction V.1 From 'Onion Franking: Abuse Reports for Mix-Based Private Messaging'
+======================================
+
+Authors: 	    Sarah Haddix
+Date: 	        April, 2025
+
+*/
+
+theory ConstructionV1
+begin
+
+builtins: asymmetric-encryption, symmetric-encryption, xor, hashing
+
+functions: Equals/2, true/0
+functions: G/1 
+functions: kf_/1, r1_/1, r2_/1, r3_/1, r4_/1
+functions: Com_Commit/2, Com_Open/3
+functions: Mac_Sign/2, Mac_Verify/3
+functions: sdec_/2, senc_/2
+
+// PRG G in construction V.1
+// can't determine s from any of these
+//equations: G(s) = <kf_(s), r1_(s), r2_(s), r3_(s), r4_(s)>   
+// TODO - fix this, just experimenting
+equations: G(<s, s, s, s, s>) = <s, s, s, s, s>
+
+// implementation of Com.Commit(r,m) and Com.Open(c,m,r)
+equations: Com_Open(Com_Commit(r,m), m, r) = true
+// implementation of Mac_Sign(k, m) and Mac_Verify(k, m, sigma)
+equations: Mac_Verify(k, m, Mac_Sign(k, m)) = true
+
+equations: Equals(x, x) = true 
+
+
+rule GenerateSymmetricKey: [Fr(~kr)] --> [!SymmetricKey($Sender, $Receiver, ~kr)]
+
+rule GenerateOnionServerNetwork: 
+
+end

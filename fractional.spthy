@@ -54,15 +54,12 @@ rule GenerateOnionServerNetwork:
   [ Fr(~sk1), Fr(~sk2), Fr(~sk3), Fr(~sk4), Fr(~km), Fr(~net_id) ] 
   --> 
   [ 
-    /* 
     !OnionServerSkAssoc($S1, ~sk1), !OnionServerPkAssoc($S1, pk1), Out(pk1),
     !OnionServerSkAssoc($S2, ~sk2), !OnionServerPkAssoc($S2, pk2), Out(pk2),
     !OnionServerSkAssoc($S3, ~sk3), !OnionServerPkAssoc($S3, pk3), Out(pk3),
     !OnionServerSkAssoc($S4, ~sk4), !OnionServerPkAssoc($S4, pk4), Out(pk4),
     !ModeratorKey($Mod, ~km),
     !OnionServerNetwork($S1, $S2, $S3, $S4, $Mod, ~net_id)
-    */
-    !OnionServerNetworkConfig($S1, $S2, $S3, $S4, $Mod, ~km, ~net_id, ~sk1, pk1, ~sk2, pk2, ~sk3, pk3, ~sk4, pk4)
   ]
 
 // Restriction that we only ever have one onion network at once. 
@@ -75,12 +72,13 @@ restriction SingleNetwork:
 rule Send:
   let
     // ****** SEND FUNCTION ******
+    /* 
     kf = fst(G(~s, ~s, ~s, ~s, ~s))
     r1 = fst(snd(G(~s, ~s, ~s, ~s, ~s)))
     r2 = fst(snd(snd(G(~s, ~s, ~s, ~s, ~s))))
     r3 = fst(snd(snd(snd(G(~s, ~s, ~s, ~s, ~s)))))
     r4 = fst(snd(snd(snd(snd(G(~s, ~s, ~s, ~s, ~s))))))
-    
+    */
     c1m = senc(~m, kr) // cyphertext
     c1s = senc(~s, kr) // cyphertext
     c2 = Com_Commit(kf, ~m) // cyphertext commitment / franking tag
@@ -113,7 +111,7 @@ rule Send:
     // ***************************
     // ******** Process **********
     // path of the metadata through the onion encryption scheme
-     
+    /* 
     st1_c2 = c2 XOR r1
     st1_sigma = sigma XOR r1
     st1_sigma_c = sigma_c XOR r1
@@ -134,25 +132,21 @@ rule Send:
     st4_sigma_c = st3_sigma_c XOR r4
     st4_ctx = st3_ctx XOR r4
     // ***************************
-    /* 
+    */
     st4_c2 = c2
     st4_sigma = sigma
     st4_sigma_c = sigma_c
     st4_ctx = ~ctx
-    */
   in
   [
     // ***** SETUP/PRECONDITONS FOR A MESSAGE TO BE SENT *****
     // onion server setup has happened
-    /* 
     !OnionServerNetwork($S1, $S2, $S3, $S4, $Mod, ~net_id),
     !OnionServerSkAssoc($S1, ~sk1), !OnionServerPkAssoc($S1, pk1),
     !OnionServerSkAssoc($S2, ~sk2), !OnionServerPkAssoc($S2, pk2),
     !OnionServerSkAssoc($S3, ~sk3), !OnionServerPkAssoc($S3, pk3),
     !OnionServerSkAssoc($S4, ~sk4), !OnionServerPkAssoc($S4, pk4),
     !ModeratorKey($Mod, ~km),
-    */
-    !OnionServerNetworkConfig($S1, $S2, $S3, $S4, $Mod, ~km, ~net_id, ~sk1, pk1, ~sk2, pk2, ~sk3, pk3, ~sk4, pk4),
     
     // kr has been generated
     !SymmetricKey($Sender, $Receiver, kr),
@@ -177,6 +171,7 @@ rule Send:
   ]->
 
   [
+    Out(<c1s, c1m, c2, c3>), // Send->ModProcess in protocol
     Out(ctm1), // Output of Onion.Peel
     Out(cts1), // Output of Onion.Peel
     Out(ctm2), // Output of Onion.Peel
@@ -185,8 +180,7 @@ rule Send:
     Out(cts3), // Output of Onion.Peel
     Out(ctm4), // Output of Onion.Peel
     Out(cts4), // Output of Onion.Peel
-
-    
+    /* 
     Out(st1_c2), // Output of Process server 1
     Out(st1_sigma), // Output of Process server 1
     Out(st1_sigma_c), // Output of Process server 1
@@ -199,8 +193,7 @@ rule Send:
     Out(st3_sigma), // Output of Process server 3
     Out(st3_sigma_c), // Output of Process server 3
     Out(st3_ctx), // Output of Process server 3
-    
-
+    */
     Out(st4_c2), // Output of Process server 4
     Out(st4_sigma), // Output of Process server 4
     Out(st4_sigma_c), // Output of Process server 4
@@ -209,84 +202,10 @@ rule Send:
     Out(<ctm4, cts4, st4_c2, st4_sigma, st4_sigma_c, st4_ctx>) 
     // ^ becomes input to Read_and_Report, just deconstructed stN and ctN
   ]
-  
-  // Models a Receiver who receives and reports an abusive message
-  rule Read_and_Report:
-  let
-    // decrypt c1
-    m = sdec(ctmN, ~kr)
-    s = sdec(ctsN, ~kr)
-
-    kf = fst(G(s, s, s, s, s))
-    r1 = fst(snd(G(s, s, s, s, s)))
-    r2 = fst(snd(snd(G(s, s, s, s, s))))
-    r3 = fst(snd(snd(snd(G(s, s, s, s, s)))))
-    r4 = fst(snd(snd(snd(snd(G(s, s, s, s, s))))))
-
-    // "decrypt" (XOR based) mrt = <c2, ctx, sigma, sigma_c>
-    mrt_3_c2 = stN_c2 XOR r4 
-    mrt_3_sigma = stN_sigma XOR r4
-    mrt_3_sigma_c = stN_sigma_c XOR r4
-    mrt_3_ctx = stN_ctx XOR r4
-    
-    mrt_2_c2 = mrt_3_c2 XOR r3
-    mrt_2_sigma = mrt_3_sigma XOR r3
-    mrt_2_sigma_c = mrt_3_sigma_c XOR r3
-    mrt_2_ctx = mrt_3_ctx XOR r3
-
-    mrt_1_c2 = mrt_2_c2 XOR r2
-    mrt_1_sigma = mrt_2_sigma XOR r2
-    mrt_1_sigma_c = mrt_2_sigma_c XOR r2
-    mrt_1_ctx = mrt_2_ctx XOR r2
-
-    c2 = mrt_1_c2 XOR r1
-    sigma = mrt_1_sigma XOR r1
-    sigma_c = mrt_1_sigma_c XOR r1
-    ctx = mrt_1_ctx XOR r1
-    /* 
-    c2 = stN_c2
-    sigma = stN_sigma
-    sigma_c = stN_sigma_c
-    ctx = stN_ctx
-    */
-  in
-  [ 
-    In(<ctmN, ctsN, stN_c2, stN_sigma, stN_sigma_c, stN_ctx>),
-    !SymmetricKey($Sender, $Receiver, ~kr)
-  ]
-  --[ 
-    MessageReceived($Sender, $Receiver, m, ctx) // todo - maybe make this the same as the stuff you're putting on out?
-    //Receiver_COM_OPEN(m, ctx, Com_Open(c2, m, kf)), // will be true if message commitment is consistent
-    //Receiver_Mac_Hash(m, ctx, ( Equals(sigma_c, h(<sigma, c2, ctx>)) )) // will be true is hash is the same as the hash taken by the moderator
-  ]->
-  [ Out(<m, ctx, c2, kf, sigma>) ]
-
-
-  // Process of reporting a message:
-  // Out(<m, ctx, c2, kf, sigma>)
-  // Existence of T/F com.open and hashing action fact associated with this message
-  // Mod ( In(<m, ctx, c2, kf, sigma>) )
-  // receives a particular instance of a message, action facts com.open and mac.verify
-  // lemma can assert that THAT particular instance, if correctly sent and read, must be correctly reported
-  rule Moderate:
-  [ 
-    !OnionServerNetworkConfig($S1, $S2, $S3, $S4, $Mod, ~km, ~net_id, ~sk1, pk1, ~sk2, pk2, ~sk3, pk3, ~sk4, pk4),
-    In(<m, ctx, c2, kf, sigma>)
-  ]
-  --[
-    SingleNetwork(~net_id),
-    MessageModerated(m, ctx),
-    Moderator_COM_OPEN(m, ctx, Com_Open(c2, m, kf)),
-    Moderator_MAC_Verify(m, ctx, Mac_Verify(~km, <c2, ctx>, sigma))
-    // both of these action facts true => Moderator function returns 1 <=> Report accepted
-  ]->
-  []
 
 
   lemma Executability:
-    exists-trace
-    "Ex S R m ctx #t #j #k . MessageSent(S, R, m, ctx)@#t
-    & MessageReceived(S, R, m, ctx)@#j
-    & MessageModerated(m, ctx)@#k"
+  exists-trace
+  "Ex Sender Receiver m ctx #t . MessageSent(Sender, Receiver, m, ctx)@#t"
 
 end

@@ -18,10 +18,10 @@ Date: 	        April, 2025
 theory ConstructionV1
 begin
 
-builtins: asymmetric-encryption, symmetric-encryption, xor, hashing
+builtins: asymmetric-encryption, symmetric-encryption, xor, hashing, diffie-hellman
 
 functions: Equals/2, true/0
-functions: G/1 
+//functions: G/1 
 functions: kf_/1, r1_/1, r2_/1, r3_/1, r4_/1
 functions: Com_Commit/2, Com_Open/3
 functions: Mac_Sign/2, Mac_Verify/3
@@ -31,7 +31,7 @@ functions: sdec_/2, senc_/2
 // can't determine s from any of these
 //equations: G(s) = <kf_(s), r1_(s), r2_(s), r3_(s), r4_(s)>   
 // TODO - fix this, just experimenting
-equations: G(<s, s, s, s, s>) = <s, s, s, s, s>
+// equations: G(<s, s, s, s, s>) = <s, s, s, s, s>
 
 // implementation of Com.Commit(r,m) and Com.Open(c,m,r)
 equations: Com_Open(Com_Commit(r,m), m, r) = true
@@ -75,11 +75,15 @@ restriction SingleNetwork:
 rule Send:
   let
     // ****** SEND FUNCTION ******
+    /* 
     kf = fst(G(~s, ~s, ~s, ~s, ~s))
     r1 = fst(snd(G(~s, ~s, ~s, ~s, ~s)))
     r2 = fst(snd(snd(G(~s, ~s, ~s, ~s, ~s))))
     r3 = fst(snd(snd(snd(G(~s, ~s, ~s, ~s, ~s)))))
     r4 = fst(snd(snd(snd(snd(G(~s, ~s, ~s, ~s, ~s))))))
+    */
+    kf = pk(~s)
+    r = 'g'^~s
     
     c1m = senc(~m, kr) // cyphertext
     c1s = senc(~s, kr) // cyphertext
@@ -88,7 +92,7 @@ rule Send:
     c33 = aenc(<c34, r3>, pk3)
     c32 = aenc(<c33, r2>, pk2)
     c31 = aenc(<c32, r1>, pk1)
-    c3 = c31 // mixnet franking packet - holds ri for each server
+    c3 = c31 // mixnet franking packet - holds ri for each server - optimized out by compiler, just here for illustrative purposes
     // ***************************
     // ****** Onion.Encrypt ******
     // encrypt c1 with vec(pk)
@@ -114,6 +118,7 @@ rule Send:
     // ******** Process **********
     // path of the metadata through the onion encryption scheme
      
+    /* 
     st1_c2 = c2 XOR r1
     st1_sigma = sigma XOR r1
     st1_sigma_c = sigma_c XOR r1
@@ -133,6 +138,7 @@ rule Send:
     st4_sigma = st3_sigma XOR r4
     st4_sigma_c = st3_sigma_c XOR r4
     st4_ctx = st3_ctx XOR r4
+    */
     // ***************************
     /* 
     st4_c2 = c2
@@ -140,6 +146,10 @@ rule Send:
     st4_sigma_c = sigma_c
     st4_ctx = ~ctx
     */
+    st4_c2 = c2 XOR r
+    st4_sigma = sigma XOR r
+    st4_sigma_c = sigma_c XOR r
+    st4_ctx = ~ctx XOR r
   in
   [
     // ***** SETUP/PRECONDITONS FOR A MESSAGE TO BE SENT *****
@@ -187,6 +197,7 @@ rule Send:
     Out(cts4), // Output of Onion.Peel
 
     
+    /* 
     Out(st1_c2), // Output of Process server 1
     Out(st1_sigma), // Output of Process server 1
     Out(st1_sigma_c), // Output of Process server 1
@@ -199,6 +210,7 @@ rule Send:
     Out(st3_sigma), // Output of Process server 3
     Out(st3_sigma_c), // Output of Process server 3
     Out(st3_ctx), // Output of Process server 3
+    */
     
 
     Out(st4_c2), // Output of Process server 4
@@ -217,12 +229,18 @@ rule Send:
     m = sdec(ctmN, ~kr)
     s = sdec(ctsN, ~kr)
 
+    kf = pk(s)
+    r = 'g'^s
+
+    /* 
     kf = fst(G(s, s, s, s, s))
     r1 = fst(snd(G(s, s, s, s, s)))
     r2 = fst(snd(snd(G(s, s, s, s, s))))
     r3 = fst(snd(snd(snd(G(s, s, s, s, s)))))
     r4 = fst(snd(snd(snd(snd(G(s, s, s, s, s))))))
+    */
 
+    /* 
     // "decrypt" (XOR based) mrt = <c2, ctx, sigma, sigma_c>
     mrt_3_c2 = stN_c2 XOR r4 
     mrt_3_sigma = stN_sigma XOR r4
@@ -243,21 +261,28 @@ rule Send:
     sigma = mrt_1_sigma XOR r1
     sigma_c = mrt_1_sigma_c XOR r1
     ctx = mrt_1_ctx XOR r1
+    */
     /* 
     c2 = stN_c2
     sigma = stN_sigma
     sigma_c = stN_sigma_c
     ctx = stN_ctx
     */
+
+    c2 = stN_c2 XOR r
+    sigma = stN_sigma XOR r
+    sigma_c = stN_sigma_c XOR r
+    ctx = stN_ctx XOR r
+    
   in
   [ 
     In(<ctmN, ctsN, stN_c2, stN_sigma, stN_sigma_c, stN_ctx>),
     !SymmetricKey($Sender, $Receiver, ~kr)
   ]
   --[ 
-    MessageReceived($Sender, $Receiver, m, ctx) // todo - maybe make this the same as the stuff you're putting on out?
-    //Receiver_COM_OPEN(m, ctx, Com_Open(c2, m, kf)), // will be true if message commitment is consistent
-    //Receiver_Mac_Hash(m, ctx, ( Equals(sigma_c, h(<sigma, c2, ctx>)) )) // will be true is hash is the same as the hash taken by the moderator
+    MessageReceived($Sender, $Receiver, m, ctx), // todo - maybe make this the same as the stuff you're putting on out?
+    Receiver_COM_OPEN(m, ctx, Com_Open(c2, m, kf)), // will be true if message commitment is consistent
+    Receiver_Mac_Hash(m, ctx, ( Equals(sigma_c, h(<sigma, c2, ctx>)) )) // will be true is hash is the same as the hash taken by the moderator
   ]->
   [ Out(<m, ctx, c2, kf, sigma>) ]
 
@@ -285,8 +310,8 @@ rule Send:
 
   lemma Executability:
     exists-trace
-    "Ex S R m ctx #t #j #k . MessageSent(S, R, m, ctx)@#t
-    & MessageReceived(S, R, m, ctx)@#j
+    "Ex Sender Receiver m ctx #t #j #k . MessageSent(Sender, Receiver, m, ctx)@#t
+    & MessageReceived(Sender, Receiver, m, ctx)@#j
     & MessageModerated(m, ctx)@#k"
 
 end
