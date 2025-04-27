@@ -54,23 +54,19 @@ rule GenerateOnionServerNetwork:
   [ Fr(~sk1), Fr(~sk2), Fr(~sk3), Fr(~sk4), Fr(~km), Fr(~net_id) ] 
   --> 
   [ 
-    /* 
     !OnionServerSkAssoc($S1, ~sk1), !OnionServerPkAssoc($S1, pk1), Out(pk1),
     !OnionServerSkAssoc($S2, ~sk2), !OnionServerPkAssoc($S2, pk2), Out(pk2),
     !OnionServerSkAssoc($S3, ~sk3), !OnionServerPkAssoc($S3, pk3), Out(pk3),
     !OnionServerSkAssoc($S4, ~sk4), !OnionServerPkAssoc($S4, pk4), Out(pk4),
     !ModeratorKey($Mod, ~km),
     !OnionServerNetwork($S1, $S2, $S3, $S4, $Mod, ~net_id)
-    */
-    !OnionServerNetworkConfig($S1, $S2, $S3, $S4, $Mod, ~km, ~net_id, ~sk1, pk1, ~sk2, pk2, ~sk3, pk3, ~sk4, pk4)
   ]
 
 // Restriction that we only ever have one onion network at once. 
 // We want to be able to send multiple messages over the same server configuration
 // Takes in net_id - this assertion is made in the Send function
 restriction SingleNetwork:
-  "All x y #i #j . SingleNetwork(x)@#i & SingleNetwork(y)@#j ==> x=y"
-
+"All x y #i #j . SingleNetwork(x)@#i & SingleNetwork(y)@#j ==> x=y"
 
 // The send rule models sending a message through the entire network, including all of the onion servers
 rule Send:
@@ -145,16 +141,12 @@ rule Send:
   [
     // ***** SETUP/PRECONDITONS FOR A MESSAGE TO BE SENT *****
     // onion server setup has happened
-    /* 
     !OnionServerNetwork($S1, $S2, $S3, $S4, $Mod, ~net_id),
     !OnionServerSkAssoc($S1, ~sk1), !OnionServerPkAssoc($S1, pk1),
     !OnionServerSkAssoc($S2, ~sk2), !OnionServerPkAssoc($S2, pk2),
     !OnionServerSkAssoc($S3, ~sk3), !OnionServerPkAssoc($S3, pk3),
     !OnionServerSkAssoc($S4, ~sk4), !OnionServerPkAssoc($S4, pk4),
     !ModeratorKey($Mod, ~km),
-    */
-    !OnionServerNetworkConfig($S1, $S2, $S3, $S4, $Mod, ~km, ~net_id, ~sk1, pk1, ~sk2, pk2, ~sk3, pk3, ~sk4, pk4),
-
     
     // kr has been generated
     !SymmetricKey($Sender, $Receiver, kr),
@@ -168,9 +160,7 @@ rule Send:
     Fr(~m),
 
     // fresh ctx is generated - represents the metadata associated with a message
-    Fr(~ctx),
-
-    Fr(kf)
+    Fr(~ctx)
   ]
 
   --[
@@ -213,45 +203,9 @@ rule Send:
     // ^ becomes input to Read_and_Report, just deconstructed stN and ctN
   ]
 
-  
-  
-  // Process of reporting a message:
-  // Out(<m, ctx, c2, kf, sigma>)
-  // Existence of T/F com.open and hashing action fact associated with this message
-  // Mod ( In(<m, ctx, c2, kf, sigma>) )
-  // receives a particular instance of a message, action facts com.open and mac.verify
-  // lemma can assert that THAT particular instance, if correctly sent and read, must be correctly reported
-  /* 
-  rule Moderate:
-  [ 
-    !OnionServerNetwork($S1, $S2, $S3, $S4, $Mod, ~net_id), !ModeratorKey($Mod, ~km),
-    In(<m, ctx, c2, kf, sigma>)
-  ]
-  --[
-    SingleNetwork(~net_id),
-    MessageModerated(m, ctx),
-    Moderator_COM_OPEN(m, ctx, Com_Open(c2, m, kf)),
-    Moderator_MAC_Verify(m, ctx, Mac_Verify(~km, <c2, ctx>, sigma))
-    // both of these action facts true => Moderator function returns 1 <=> Report accepted
-  ]->
-  []
-  */
- 
-  /* 
+
   lemma Executability:
-    exists-trace
-    "Ex Sender Receiver m ctx #t #k . MessageSent(Sender, Receiver, m, ctx)@#t
-    //& MessageReceived(Sender, Receiver, m, ctx)@#j
-    & MessageModerated(m, ctx)@#k"
-  */
+  exists-trace
+  "Ex Sender Receiver m ctx #t . MessageSent(Sender, Receiver, m, ctx)@#t"
 
-  // Lemma saying adversary doesn't know the message and context until the message is reported
-
-  // Whenever we send a message, 
-  // if we receive a message, could be 
-  // after running messageSend, we want it to be possible to do a messageRead that gives us the same R, m back
-  /*
-  lemma Correctness_incomplete:
-    "All S R m #i . MessageSent(S, R, m)@#i ==> Ex s #j. MessageReceived(R, <m, s>)@#j"
- */
 end
