@@ -248,7 +248,6 @@ rule Send:
 
    
     // if we sent it, if there exists a report, that report will succeed
-    // given a message is sent and reported, 
   lemma Correctness:
     " 
       // For all messages sent  
