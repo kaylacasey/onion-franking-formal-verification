@@ -7,15 +7,77 @@ begin
 
 builtins: xor
 
+// Rule to generate a fresh key shared with two parties for encryption and decryption
+// Prerequisite to send any message
+rule GenerateKeyPair:
+  [ Fr(~k), Fr(~id) ]
+  -->[KeyPairOne($S, $R, ~k, ~id), KeyPairTwo($S, $R, ~k, ~id)]
+
+// Consumes the rule `KeyPairOne` <=> Sender in real life encrypting their message and destroying their key
+rule Send:
+  [KeyPairOne($S, $R, ~k, ~id), Fr(~m)]
+  --[Sent($S, $R, ~m, ~id)]->[Out(~m XOR ~k)]
+
+// Consumes the rule `KeyPairTwo` <=> Receiver in real life decrypting their message and destroying their key
+rule Receive:
+  [KeyPairTwo($S, $R, ~k, ~id), In(z)]
+  --[Read($S, $R, z XOR ~k, ~id)]->[]
+
+// Generates a `Leak` fact if the key still exists 
+rule KeyExists1:
+[KeyPairOne($S, $R, ~k, ~id)] --[Leak($S, $R, ~id)]-> []
+
+rule KeyExists2:
+[KeyPairTwo($S, $R, ~k, ~id)] --[Leak($S, $R, ~id)]-> []
+
+// States that, if we have sent and received a particular message, no instance of the key used to send that message should exist anywhere
+lemma Secure:
+  "
+    All #i #j S R m id . Sent(S, R, m, id)@i & Read(S, R, m, id)@j ==> (not Ex #k. (Leak(S, R, id)@#k))
+  "
+
+end
+
+
+
+// ------------------------------ Counter example generated from these rules-----------------------------------------
+// This implementation did not have the "id" component. We added this to the final version to ensure that each leak was associated with a 
+// particular instance of a message send and therefore a lemma could state that, given a send and receive of a message, any leak used to disprove
+// security must be associated with the message itself and not some unrelated one.
+
+// rule GenerateKeyPair:
+//   [ Fr(~k) ]
+//   -->[KeyPairOne($S, $R, ~k), KeyPairTwo($S, $R, ~k)]
+
+
+// rule Send:
+//   [KeyPairOne($S, $R, ~k), Fr(~m)]
+//   --[Sent($S, $R, ~m)]->[Out(~m XOR ~k)]
+
+
+// rule Receive:
+//   [KeyPairTwo($S, $R, ~k), In(z)]
+//   --[Read($S, $R, z XOR ~k)]->[]
+
+// rule KeyExists1:
+// [KeyPairOne($S, $R, ~k)] --[Leak()]-> []
+
+// rule KeyExists2:
+// [KeyPairTwo($S, $R, ~k)] --[Leak())]-> []
+
+// lemma Secure:
+//   "
+//     All #i #j S R m . Sent(S, R, m)@i & Read(S, R, m)@j ==> (not Ex #k. (Leak()@#k))
+//   "
+
+
+
+// ------------------------------ First OTP Implementation ---------------------------------------------
 // Key generation and distribution to sender and receiver
 // rule GenerateKey:
 //   [ Fr(~k) ]
 //   --[ KeyGenerated(~k) ]->
 //   [ SenderKey(~k), ReceiverKey(~k) ]
-
-rule GenerateKeyPair:
-  [ Fr(~k), Fr(~id) ]
-  -->[KeyPairOne($S, $R, ~k, ~id), KeyPairTwo($S, $R, ~k, ~id)]
 
 // Sender encrypts a message and sends it
 // rule Encrypt:
@@ -25,10 +87,6 @@ rule GenerateKeyPair:
 //   --[ MessageEncrypted(m, k, c) ]->
 //   [ Out(c) ]
 
-rule Send:
-  [KeyPairOne($S, $R, ~k, ~id), Fr(~m)]
-  --[Sent($S, $R, ~m, ~id)]->[Out(~m XOR ~k)]
-
 // Receiver decrypts a ciphertext
 // rule Decrypt:
 //   let m = c XOR k
@@ -36,22 +94,6 @@ rule Send:
 //   [ ReceiverKey(k), In(c) ]
 //   --[ MessageDecrypted(c, k, m) ]->
 //   [ Out(m) ]
-
-rule Receive:
-  [KeyPairTwo($S, $R, ~k, ~id), In(z)]
-  --[Read($S, $R, z XOR ~k, ~id)]->[]
-
-rule KeyExists1:
-[KeyPairOne($S, $R, ~k, ~id)] --[Leak($S, $R, ~id)]-> []
-
-rule KeyExists2:
-[KeyPairTwo($S, $R, ~k, ~id)] --[Leak($S, $R, ~id)]-> []
-
-lemma Secure:
-  "
-    All #i #j S R m id . Sent(S, R, m, id)@i & Read(S, R, m, id)@j ==> (not Ex #k. (Leak(S, R, id)@#k))
-  "
-
 
 // // Adversary compromises the key from the sender
 // rule CompromiseKey_Sender:
@@ -75,5 +117,3 @@ lemma Secure:
 // lemma otp_correct_decryption:
 //   "All m k c #i #j.
 //     (MessageEncrypted(m, k, c) @ #i & MessageDecrypted(c, k, m) @ #j) ==> true"
-
-end
