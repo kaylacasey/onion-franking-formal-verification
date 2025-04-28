@@ -14,8 +14,8 @@ builtins: xor
 //   [ SenderKey(~k), ReceiverKey(~k) ]
 
 rule GenerateKeyPair:
-  [ Fr(~k) ]
-  -->[KeyPairOne($S, $R, ~k), KeyPairTwo($S, $R, ~k)]
+  [ Fr(~k), Fr(~id) ]
+  -->[KeyPairOne($S, $R, ~k, ~id), KeyPairTwo($S, $R, ~k, ~id)]
 
 // Sender encrypts a message and sends it
 // rule Encrypt:
@@ -26,8 +26,8 @@ rule GenerateKeyPair:
 //   [ Out(c) ]
 
 rule Send:
-  [KeyPairOne($S, $R, ~k), Fr(~m)]
-  --[Sent($S, $R, ~m)]->[Out(~m XOR ~k)]
+  [KeyPairOne($S, $R, ~k, ~id), Fr(~m)]
+  --[Sent($S, $R, ~m, ~id)]->[Out(~m XOR ~k)]
 
 // Receiver decrypts a ciphertext
 // rule Decrypt:
@@ -38,18 +38,18 @@ rule Send:
 //   [ Out(m) ]
 
 rule Receive:
-  [KeyPairTwo($S, $R, ~k), In(z)]
-  --[Read($S, $R, z XOR ~k)]->[]
+  [KeyPairTwo($S, $R, ~k, ~id), In(z)]
+  --[Read($S, $R, z XOR ~k, ~id)]->[]
 
 rule KeyExists1:
-[KeyPairOne($S, $R, ~k)] --[Leak($S, $R, ~k)]-> []
+[KeyPairOne($S, $R, ~k, ~id)] --[Leak($S, $R, ~id)]-> []
 
 rule KeyExists2:
-[KeyPairTwo($S, $R, ~k)] --[Leak($S, $R, ~k)]-> []
+[KeyPairTwo($S, $R, ~k, ~id)] --[Leak($S, $R, ~id)]-> []
 
 lemma Secure:
   "
-    All #i #j S R m . Sent(S, R, m)@i & Read(S, R, m)@j ==> (not Ex #k. (Leak(S, R,m)@#k))
+    All #i #j S R m id . Sent(S, R, m, id)@i & Read(S, R, m, id)@j ==> (not Ex #k. (Leak(S, R, id)@#k))
   "
 
 
