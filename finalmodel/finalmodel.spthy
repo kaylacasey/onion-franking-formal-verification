@@ -218,7 +218,6 @@ rule Send:
   ]->
   [ Out(<m, ctx, c2, kf, sigma>) ]
 
-
   // Process of reporting a message:
   // Out(<m, ctx, c2, kf, sigma>)
   // Existence of T/F com.open and hashing action fact associated with this message
@@ -258,9 +257,12 @@ rule Send:
   //       MessageSent(Sender, Receiver, m, ctx) @ #j & j < i)"
 
 
+
   // used in the context of proving unforgeability
   restriction TrustedReceive:
-    "All Sender Receiver m ctx . MessageReceived(Sender, Receiver, m, ctx) ==> MessageSent(Sender, Receiver, m, ctx)"
+  "All Sender Receiver m ctx #i.
+     MessageReceived(Sender, Receiver, m, ctx) @ #i
+     ==> (Ex #j. MessageSent(Sender, Receiver, m, ctx) @ #j & #j < #i)"
 
 
   
