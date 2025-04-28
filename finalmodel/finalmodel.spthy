@@ -250,12 +250,12 @@ rule Send:
     (Ex Sender Receiver #j.
       (MessageSent(Sender, Receiver, m, ctx) @ #j & #j < #i)
     )
-  "
-  lemma Sources_lemma:
-  "All ctm4 cts4 st4_c2 st4_sigma st4_sigma_c st4_ctx #i.
-    (Out(<ctm4, cts4, st4_c2, st4_sigma, st4_sigma_c, st4_ctx>) @ #i)
-    ==> (Ex Sender Receiver m ctx #j.
-        MessageSent(Sender, Receiver, m, ctx) @ #j & j < i)"
+   "
+  // lemma Sources_lemma:
+  // "All ctm4 cts4 st4_c2 st4_sigma st4_sigma_c st4_ctx #i.
+  //   (Out(<ctm4, cts4, st4_c2, st4_sigma, st4_sigma_c, st4_ctx>) @ #i)
+  //   ==> (Ex Sender Receiver m ctx #j.
+  //       MessageSent(Sender, Receiver, m, ctx) @ #j & j < i)"
 
 
   
@@ -307,34 +307,34 @@ rule Send:
 
   // --------- rewritten lemma to try --------
   lemma Unforgeability:
-  "All m ctx #j #k.
-    (Moderator_COM_OPEN(m, ctx, true)@#j & Moderator_MAC_Verify(m, ctx, true)@#k)
+  "All m ctx #j.
+    (Moderator_COM_OPEN(m, ctx, true)@#j & Moderator_MAC_Verify(m, ctx, true)@#j)
     ==> 
     (Ex Sender Receiver #x. MessageSent(Sender, Receiver, m, ctx)@#x & #x < #j)
   "
 
 
   // Prevents users from sending messages that can be read by the recipient but not reported
-  lemma Accountability:
-  "
-    // For all messages that are both sent and correctly received 
-    ( All Sender Receiver m ctx #j . 
-      MessageSent(Sender, Receiver, m, ctx)@#j & 
-      (Ex #x . Receiver_COM_OPEN(m, ctx, true)@#x) & (Ex #x . Receiver_Mac_Hash(m, ctx, true)@#x)
-      ==>
-      // The message can be successfully reported 
-      (Ex #x . Moderator_COM_OPEN(m, ctx, true)@#x) & (Ex #x . Moderator_MAC_Verify(m, ctx, true)@#x)
-    )
-  "
+  // lemma Accountability:
+  // "
+  //   // For all messages that are both sent and correctly received 
+  //   ( All Sender Receiver m ctx #j . 
+  //     MessageSent(Sender, Receiver, m, ctx)@#j & 
+  //     (Ex #x . Receiver_COM_OPEN(m, ctx, true)@#x) & (Ex #x . Receiver_Mac_Hash(m, ctx, true)@#x)
+  //     ==>
+  //     // The message can be successfully reported 
+  //     (Ex #x . Moderator_COM_OPEN(m, ctx, true)@#x) & (Ex #x . Moderator_MAC_Verify(m, ctx, true)@#x)
+  //   )
+  // "
 
   // ------ Rewritten lemma to try -----
-  // lemma Accountability:
-  // "All Sender Receiver m ctx #i.
-  //   (MessageSent(Sender, Receiver, m, ctx) @ #i &
-  //    (Ex #j. Receiver_COM_OPEN(m, ctx, true) @ #j) &
-  //    (Ex #k. Receiver_Mac_Hash(m, ctx, true) @ #k))
-  //   ==> (Ex #l. Moderator_COM_OPEN(m, ctx, true) @ #l &
-  //       Ex #m. Moderator_MAC_Verify(m, ctx, true) @ #m)"
+  lemma Accountability:
+  "All Sender Receiver m ctx #i.
+    (MessageSent(Sender, Receiver, m, ctx) @ #i &
+     (Ex #j. Receiver_COM_OPEN(m, ctx, true) @ #j) &
+     (Ex #k. Receiver_Mac_Hash(m, ctx, true) @ #k))
+    ==> (Ex #l. Moderator_COM_OPEN(m, ctx, true) @ #l &
+        Ex #m. Moderator_MAC_Verify(m, ctx, true) @ #m)"
 
 
 end
