@@ -1,3 +1,12 @@
+/*
+Specification for One-Time Pad construction, modeled in Tamarin
+======================================
+
+Authors: 	    Sarah Haddix, Kayla casey
+Date: 	        April, 2025
+
+*/
+
 theory OTP_WIP
 begin
 
