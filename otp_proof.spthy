@@ -1,0 +1,123 @@
+theory OTP begin
+
+// Function signature and definition of the equational theory E
+
+builtins: xor
+functions: fst/1, pair/2, snd/1
+equations: fst(<x.1, x.2>) = x.1, snd(<x.1, x.2>) = x.2
+
+
+
+
+
+
+
+rule (modulo E) GenerateKeyPair:
+   [ Fr( ~k ), Fr( ~id ) ]
+  -->
+   [ KeyPairOne( $S, $R, ~k, ~id ), KeyPairTwo( $S, $R, ~k, ~id ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Send:
+   [ KeyPairOne( $S, $R, ~k, ~id ), Fr( ~m ) ]
+  --[ Sent( $S, $R, ~m, ~id ) ]->
+   [ Out( (~k⊕~m) ) ]
+
+  /*
+  rule (modulo AC) Send:
+     [ KeyPairOne( $S, $R, ~k, ~id ), Fr( ~m ) ]
+    --[ Sent( $S, $R, ~m, ~id ) ]->
+     [ Out( z ) ]
+    variants (modulo AC)
+    1. ~k    = ~k.7
+       ~m    = ~m.7
+       z     = (~k.7⊕~m.7)
+    
+    2. ~k    = ~x.7
+       ~m    = ~x.7
+       z     = zero
+  */
+
+rule (modulo E) Receive:
+   [ KeyPairTwo( $S, $R, ~k, ~id ), In( z ) ]
+  --[ Read( $S, $R, (~k⊕z), ~id ) ]->
+   [ ]
+
+  /*
+  rule (modulo AC) Receive:
+     [ KeyPairTwo( $S, $R, ~k, ~id ), In( z ) ]
+    --[ Read( $S, $R, z.1, ~id ) ]->
+     [ ]
+    variants (modulo AC)
+    1. ~k    = ~k.7
+       z     = z.7
+       z.1   = (~k.7⊕z.7)
+    
+    2. ~k    = ~k.7
+       z     = zero
+       z.1   = ~k.7
+    
+    3. ~k    = ~x.7
+       z     = ~x.7
+       z.1   = zero
+    
+    4. ~k    = ~x.7
+       z     = (~x.7⊕x.8)
+       z.1   = x.8
+  */
+
+rule (modulo E) KeyExists1:
+   [ KeyPairOne( $S, $R, ~k, ~id ) ] --[ Leak( $S, $R, ~id ) ]-> [ ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) KeyExists2:
+   [ KeyPairTwo( $S, $R, ~k, ~id ) ] --[ Leak( $S, $R, ~id ) ]-> [ ]
+
+  /* has exactly the trivial AC variant */
+
+lemma Secure:
+  all-traces
+  "∀ #i #j S R m id.
+    ((Sent( S, R, m, id ) @ #i) ∧ (Read( S, R, m, id ) @ #j)) ⇒
+    (¬(∃ #k. Leak( S, R, id ) @ #k))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ #i #j S R m id.
+  (Sent( S, R, m, id ) @ #i) ∧ (Read( S, R, m, id ) @ #j)
+ ∧
+  ∃ #k. (Leak( S, R, id ) @ #k)"
+*/
+simplify
+solve( KeyPairOne( $S, $R, ~k, ~id ) ▶₀ #i )
+  case GenerateKeyPair
+  solve( KeyPairTwo( $S, $R, ~k.1, ~id ) ▶₀ #j )
+    case GenerateKeyPair
+    solve( Leak( $S, $R, ~id ) @ #k.1 )
+      case KeyExists1
+      by solve( KeyPairOne( $S, $R, ~k.2, ~id ) ▶₀ #k.1 )
+    next
+      case KeyExists2
+      by solve( KeyPairTwo( $S, $R, ~k.2, ~id ) ▶₀ #k.1 )
+    qed
+  qed
+qed
+
+
+
+
+
+
+
+/* All wellformedness checks were successful. */
+
+/*
+Generated from:
+Tamarin version 1.10.0
+Maude version 2.7.1
+Git revision: UNKNOWN, branch: UNKNOWN
+Compiled at: 2024-10-30 13:42:18.081591 UTC
+*/
+
+end

@@ -7,7 +7,7 @@ Date: 	        April, 2025
 
 */
 
-theory OTP_WIP
+theory OTP
 begin
 
 // This is a basic implementation of the One-Time Pad in Tamarin. We used this exercise to gain familiarity
