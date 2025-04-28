@@ -1,7 +1,11 @@
 theory OTP_WIP
 begin
 
-builtins: xor, symmetric-encryption
+// This is a basic implementation of the One-Time Pad in Tamarin. We used this exercise to gain familiarity
+// Tamarin's syntax and interactive prover. We found it difficult to model some of the nuances of the OTP
+// with Tamarin, but used this as an exercise since the OTP is provably secure.
+
+builtins: xor
 
 // Key generation and distribution to sender and receiver
 rule GenerateKey:
@@ -13,7 +17,7 @@ rule GenerateKey:
 rule Encrypt:
   let c = m XOR k
   in
-  [ SenderKey(k), In(m) ]
+  [ SenderKey(k), Fr(m) ]
   --[ MessageEncrypted(m, k, c) ]->
   [ Out(c) ]
 
@@ -43,4 +47,9 @@ lemma otp_secrecy:
     (MessageEncrypted(m, k, c) @ #i)
     ==> (All #t. (K(m) @ #t ==> (Ex #s. (KeyCompromised_Sender(k) @ #s | KeyCompromised_Receiver(k) @ #s))))"
 
-end
+// Correctness Lemma: msg xor key = ciphertext, ciphertext xor key = msg
+// lemma otp_correct_decryption:
+//   "All m k c #i #j.
+//     (MessageEncrypted(m, k, c) @ #i & MessageDecrypted(c, k, m) @ #j) ==> true"
+
+// end

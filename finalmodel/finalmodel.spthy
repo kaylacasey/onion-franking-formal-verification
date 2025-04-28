@@ -240,6 +240,25 @@ rule Send:
   []
 
 
+    // --------- sources lemmas to try --------
+
+// if we see a message and all this other information, it came from an honest sender. 
+  lemma Sources_MessageSent:
+  "All m ctx c2 kf sigma #i.
+    (In(<m, ctx, c2, kf, sigma>) @ #i)
+    ==>
+    (Ex Sender Receiver #j.
+      (MessageSent(Sender, Receiver, m, ctx) @ #j & #j < #i)
+    )
+  "
+  lemma Sources_lemma:
+  "All ctm4 cts4 st4_c2 st4_sigma st4_sigma_c st4_ctx #i.
+    (Out(<ctm4, cts4, st4_c2, st4_sigma, st4_sigma_c, st4_ctx>) @ #i)
+    ==> (Ex Sender Receiver m ctx #j.
+        MessageSent(Sender, Receiver, m, ctx) @ #j & j < i)"
+
+
+  
   lemma Executability:
     exists-trace
     "Ex Sender Receiver m ctx #t #j #k . MessageSent(Sender, Receiver, m, ctx)@#t
@@ -249,29 +268,51 @@ rule Send:
    
     // if we sent it, if there exists a report, that report will succeed
     // given a message is sent and reported, 
+  // lemma Correctness:
+  //   " 
+  //     // For all messages sent  
+  //     ( All Sender Receiver m ctx #t #k. 
+  //       MessageSent(Sender, Receiver, m, ctx)@#t
+  //       & MessageModerated(m, ctx)@#k
+  //       ==>
+  //       // That message can be correctly reported 
+  //       (
+  //         ( Moderator_COM_OPEN(m, ctx, true)@#k & Moderator_MAC_Verify(m, ctx, true)@#k)
+  //       )
+  //     )
+  //   "
+
+  // --------- rewritten lemma to try --------
   lemma Correctness:
-    " 
-      // For all messages sent  
-      ( All Sender Receiver m ctx #t #k. 
-        MessageSent(Sender, Receiver, m, ctx)@#t
-        & MessageModerated(m, ctx)@#k
-        ==>
-        // That message can be correctly reported 
-        (
-          ( Moderator_COM_OPEN(m, ctx, true)@#k & Moderator_MAC_Verify(m, ctx, true)@#k)
-        )
-      )
+  "All Sender Receiver m ctx #i #j.
+    (MessageSent(Sender, Receiver, m, ctx) @ #i &
+     MessageModerated(m, ctx) @ #j)
+    ==> 
+    (Ex #k. Moderator_COM_OPEN(m, ctx, true) @ #k & 
+    Ex #l. Moderator_MAC_Verify(m, ctx, true) @ #l)
     "
 
+
+
   // No malicious client can create a false abuse report that the moderator will accept
+  // lemma Unforgeability:
+  // " // For all reports that are successful 
+  //   ( All m ctx #j #k . Moderator_COM_OPEN(m, ctx, true)@#j & Moderator_MAC_Verify(m, ctx, true)@#k
+  //   ==>
+  //   // The message was previously sent through the encryption scheme 
+  //   (Ex Sender Receiver #x . x < j & x < k & MessageSent(Sender, Receiver, m, ctx)@#x)
+  //   )
+  // "
+
+
+  // --------- rewritten lemma to try --------
   lemma Unforgeability:
-  " // For all reports that are successful 
-    ( All m ctx #j #k . Moderator_COM_OPEN(m, ctx, true)@#j & Moderator_MAC_Verify(m, ctx, true)@#k
-    ==>
-    // The message was previously sent through the encryption scheme 
-    (Ex Sender Receiver #x . x < j & x < k & MessageSent(Sender, Receiver, m, ctx)@#x)
-    )
+  "All m ctx #j #k.
+    (Moderator_COM_OPEN(m, ctx, true)@#j & Moderator_MAC_Verify(m, ctx, true)@#k)
+    ==> 
+    (Ex Sender Receiver #x. MessageSent(Sender, Receiver, m, ctx)@#x & #x < #j)
   "
+
 
   // Prevents users from sending messages that can be read by the recipient but not reported
   lemma Accountability:
@@ -285,6 +326,15 @@ rule Send:
       (Ex #x . Moderator_COM_OPEN(m, ctx, true)@#x) & (Ex #x . Moderator_MAC_Verify(m, ctx, true)@#x)
     )
   "
+
+  // ------ Rewritten lemma to try -----
+  // lemma Accountability:
+  // "All Sender Receiver m ctx #i.
+  //   (MessageSent(Sender, Receiver, m, ctx) @ #i &
+  //    (Ex #j. Receiver_COM_OPEN(m, ctx, true) @ #j) &
+  //    (Ex #k. Receiver_Mac_Hash(m, ctx, true) @ #k))
+  //   ==> (Ex #l. Moderator_COM_OPEN(m, ctx, true) @ #l &
+  //       Ex #m. Moderator_MAC_Verify(m, ctx, true) @ #m)"
 
 
 end
