@@ -1,0 +1,79 @@
+theory OTP_WIP
+begin
+
+// This is a basic implementation of the One-Time Pad in Tamarin. We used this exercise to gain familiarity
+// Tamarin's syntax and interactive prover. We found it difficult to model some of the nuances of the OTP
+// with Tamarin, but used this as an exercise since the OTP is provably secure.
+
+builtins: xor
+
+// Key generation and distribution to sender and receiver
+// rule GenerateKey:
+//   [ Fr(~k) ]
+//   --[ KeyGenerated(~k) ]->
+//   [ SenderKey(~k), ReceiverKey(~k) ]
+
+rule GenerateKeyPair:
+  [ Fr(~k), Fr(~id) ]
+  -->[KeyPairOne($S, $R, ~k, ~id), KeyPairTwo($S, $R, ~k, ~id)]
+
+// Sender encrypts a message and sends it
+// rule Encrypt:
+//   let c = m XOR k
+//   in
+//   [ SenderKey(k), Fr(m) ]
+//   --[ MessageEncrypted(m, k, c) ]->
+//   [ Out(c) ]
+
+rule Send:
+  [KeyPairOne($S, $R, ~k, ~id), Fr(~m)]
+  --[Sent($S, $R, ~m, ~id)]->[Out(~m XOR ~k)]
+
+// Receiver decrypts a ciphertext
+// rule Decrypt:
+//   let m = c XOR k
+//   in
+//   [ ReceiverKey(k), In(c) ]
+//   --[ MessageDecrypted(c, k, m) ]->
+//   [ Out(m) ]
+
+rule Receive:
+  [KeyPairTwo($S, $R, ~k, ~id), In(z)]
+  --[Read($S, $R, z XOR ~k, ~id)]->[]
+
+rule KeyExists1:
+[KeyPairOne($S, $R, ~k, ~id)] --[Leak($S, $R, ~id)]-> []
+
+rule KeyExists2:
+[KeyPairTwo($S, $R, ~k, ~id)] --[Leak($S, $R, ~id)]-> []
+
+lemma Secure:
+  "
+    All #i #j S R m id . Sent(S, R, m, id)@i & Read(S, R, m, id)@j ==> (not Ex #k. (Leak(S, R, id)@#k))
+  "
+
+
+// // Adversary compromises the key from the sender
+// rule CompromiseKey_Sender:
+//   [ SenderKey(k) ]
+//   --[ KeyCompromised_Sender(k) ]->
+//   [ K(k) ]
+
+// // Adversary compromises the key from the receiver
+// rule CompromiseKey_Receiver:
+//   [ ReceiverKey(k) ]
+//   --[ KeyCompromised_Receiver(k) ]->
+//   [ K(k) ]
+
+// // Secrecy Lemma: message stays secret if key is not compromised
+// lemma otp_secrecy:
+//   "All m k c #i.
+//     (MessageEncrypted(m, k, c) @ #i)
+//     ==> (All #t. (K(m) @ #t ==> (Ex #s. (KeyCompromised_Sender(k) @ #s | KeyCompromised_Receiver(k) @ #s))))"
+
+// Correctness Lemma: msg xor key = ciphertext, ciphertext xor key = msg
+// lemma otp_correct_decryption:
+//   "All m k c #i #j.
+//     (MessageEncrypted(m, k, c) @ #i & MessageDecrypted(c, k, m) @ #j) ==> true"
+
+end
