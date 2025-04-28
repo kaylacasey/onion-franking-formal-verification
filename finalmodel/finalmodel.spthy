@@ -243,19 +243,24 @@ rule Send:
     // --------- sources lemmas to try --------
 
 // if we see a message and all this other information, it came from an honest sender. 
-  lemma Sources_MessageSent:
-  "All m ctx c2 kf sigma #i.
-    (In(<m, ctx, c2, kf, sigma>) @ #i)
-    ==>
-    (Ex Sender Receiver #j.
-      (MessageSent(Sender, Receiver, m, ctx) @ #j & #j < #i)
-    )
-   "
+  // lemma Sources_MessageSent:
+  // "All m ctx c2 kf sigma #i.
+  //   (In(<m, ctx, c2, kf, sigma>) @ #i)
+  //   ==>
+  //   (Ex Sender Receiver #j.
+  //     (MessageSent(Sender, Receiver, m, ctx) @ #j & #j < #i)
+  //   )
+  //  "
   // lemma Sources_lemma:
   // "All ctm4 cts4 st4_c2 st4_sigma st4_sigma_c st4_ctx #i.
   //   (Out(<ctm4, cts4, st4_c2, st4_sigma, st4_sigma_c, st4_ctx>) @ #i)
   //   ==> (Ex Sender Receiver m ctx #j.
   //       MessageSent(Sender, Receiver, m, ctx) @ #j & j < i)"
+
+
+  // used in the context of proving unforgeability
+  restriction TrustedReceive:
+    "All Sender Receiver m ctx . MessageReceived(Sender, Receiver, m, ctx) ==> MessageSent(Sender, Receiver, m, ctx)"
 
 
   

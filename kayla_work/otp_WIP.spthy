@@ -8,48 +8,72 @@ begin
 builtins: xor
 
 // Key generation and distribution to sender and receiver
-rule GenerateKey:
+// rule GenerateKey:
+//   [ Fr(~k) ]
+//   --[ KeyGenerated(~k) ]->
+//   [ SenderKey(~k), ReceiverKey(~k) ]
+
+rule GenerateKeyPair:
   [ Fr(~k) ]
-  --[ KeyGenerated(~k) ]->
-  [ SenderKey(~k), ReceiverKey(~k) ]
+  -->[KeyPairOne($S, $R, ~k), KeyPairTwo($S, $R, ~k)]
 
 // Sender encrypts a message and sends it
-rule Encrypt:
-  let c = m XOR k
-  in
-  [ SenderKey(k), Fr(m) ]
-  --[ MessageEncrypted(m, k, c) ]->
-  [ Out(c) ]
+// rule Encrypt:
+//   let c = m XOR k
+//   in
+//   [ SenderKey(k), Fr(m) ]
+//   --[ MessageEncrypted(m, k, c) ]->
+//   [ Out(c) ]
+
+rule Send:
+  [KeyPairOne($S, $R, ~k), Fr(~m)]
+  --[Sent($S, $R, ~m)]->[Out(~m XOR ~k)]
 
 // Receiver decrypts a ciphertext
-rule Decrypt:
-  let m = c XOR k
-  in
-  [ ReceiverKey(k), In(c) ]
-  --[ MessageDecrypted(c, k, m) ]->
-  [ Out(m) ]
+// rule Decrypt:
+//   let m = c XOR k
+//   in
+//   [ ReceiverKey(k), In(c) ]
+//   --[ MessageDecrypted(c, k, m) ]->
+//   [ Out(m) ]
 
-// Adversary compromises the key from the sender
-rule CompromiseKey_Sender:
-  [ SenderKey(k) ]
-  --[ KeyCompromised_Sender(k) ]->
-  [ K(k) ]
+rule Receive:
+  [KeyPairTwo($S, $R, ~k), In(z)]
+  --[Read($S, $R, z XOR ~k)]->[]
 
-// Adversary compromises the key from the receiver
-rule CompromiseKey_Receiver:
-  [ ReceiverKey(k) ]
-  --[ KeyCompromised_Receiver(k) ]->
-  [ K(k) ]
+rule KeyExists1:
+[KeyPairOne($S, $R, ~k)] --[Leak($S, $R, ~k)]-> []
 
-// Secrecy Lemma: message stays secret if key is not compromised
-lemma otp_secrecy:
-  "All m k c #i.
-    (MessageEncrypted(m, k, c) @ #i)
-    ==> (All #t. (K(m) @ #t ==> (Ex #s. (KeyCompromised_Sender(k) @ #s | KeyCompromised_Receiver(k) @ #s))))"
+rule KeyExists2:
+[KeyPairTwo($S, $R, ~k)] --[Leak($S, $R, ~k)]-> []
+
+lemma Secure:
+  "
+    All #i #j S R m . Sent(S, R, m)@i & Read(S, R, m)@j ==> (not Ex #k. (Leak(S, R,m)@#k))
+  "
+
+
+// // Adversary compromises the key from the sender
+// rule CompromiseKey_Sender:
+//   [ SenderKey(k) ]
+//   --[ KeyCompromised_Sender(k) ]->
+//   [ K(k) ]
+
+// // Adversary compromises the key from the receiver
+// rule CompromiseKey_Receiver:
+//   [ ReceiverKey(k) ]
+//   --[ KeyCompromised_Receiver(k) ]->
+//   [ K(k) ]
+
+// // Secrecy Lemma: message stays secret if key is not compromised
+// lemma otp_secrecy:
+//   "All m k c #i.
+//     (MessageEncrypted(m, k, c) @ #i)
+//     ==> (All #t. (K(m) @ #t ==> (Ex #s. (KeyCompromised_Sender(k) @ #s | KeyCompromised_Receiver(k) @ #s))))"
 
 // Correctness Lemma: msg xor key = ciphertext, ciphertext xor key = msg
 // lemma otp_correct_decryption:
 //   "All m k c #i #j.
 //     (MessageEncrypted(m, k, c) @ #i & MessageDecrypted(c, k, m) @ #j) ==> true"
 
-// end
+end
