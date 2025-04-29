@@ -16,7 +16,6 @@ making it an ideal candidate to model. The model is defined in the `otp.spthy` f
 - `onion_franking.spthy` — Main specification of the Onion Franking protocol.
 - `otp_proof.spthy` — Full proof output and verification of the `otp.spthy` protocol.
 - `otp.spthy` — Main specification of the OTP protocol.
-- `run.sh` — Script to easily launch Tamarin Prover on the model.
 
 ---
 
