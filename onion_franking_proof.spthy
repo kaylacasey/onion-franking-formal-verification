@@ -1,4 +1,4 @@
-theory ConstructionV1 begin
+theory ConstructionV1_Proof begin
 
 // Function signature and definition of the equational theory E
 

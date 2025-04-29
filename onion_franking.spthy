@@ -256,6 +256,7 @@ rule Send:
 
   // ----------------------- Executability lemma -----------------------
   // There exists a trace in which a sender sends a ciphertext through the onion franking protocl, it is receveived, and can be moderated
+  // This is a lemma showing that there exists a trace (liveness)
   lemma Executability:
     exists-trace
     "Ex Sender Receiver m ctx #t #j #k . MessageSent(Sender, Receiver, m, ctx)@#t
