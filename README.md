@@ -1,4 +1,5 @@
 # Formal Verification of Onion Franking using Tamarin
+## Authors: Kayla Casey, Sarah Haddix, Bao-Nhi Vu
 
 This project models and verifies security properties of the **Onion Franking** cryptographic scheme for metadata hiding E2EE using the **Tamarin Prover**, a formal verification tool for symbolic model checking.
 
@@ -53,7 +54,7 @@ Once the GUI opens:
 - **Press `c`** to automatically prove **all lemmas**.
 
 
-- If a proof obligation cannot be automatically discharged, you can perform partial deconstructions or case analysis manually.
+If a proof obligation cannot be automatically discharged, you can perform partial deconstructions or case analysis manually.
 
 ---
 
@@ -62,5 +63,4 @@ Once the GUI opens:
 - If you encounter "partial deconstructions left" messages, you may need to manually interact with the prover to guide it through proof steps.
 - If Tamarin crashes due to resource limits on larger models, consider using flags like `--auto-sources` or manually structuring sources lemmas to help. We were not able to make use of `--auto-sources` due to memory and time limitations.
 
----
 
