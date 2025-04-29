@@ -23,7 +23,7 @@ making it an ideal candidate to model. The model is defined in the `otp.spthy` f
 
 ### 1. Download the Tamarin Prover
 Follow the steps outlined on the Tamarin Prover website to download it:
-[Tamarin Prover Website](https://tamarin-prover.com/)
+[https://tamarin-prover.com/](https://tamarin-prover.com/)
 
 ### 2. Run Tamarin (Automatic Prover)
 To open the interactive prover:
